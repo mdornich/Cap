@@ -11,7 +11,7 @@ export function Setting(props: {
       <div class="flex flex-col justify-between items-start space-y-2">
         {props.pro && (
           <span class="px-2 py-1 text-xs font-medium rounded-lg text-solid-white bg-blue-9">
-            Cap Pro
+            Klip Pro
           </span>
         )}
         <div class="flex gap-2 items-center">

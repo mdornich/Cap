@@ -815,7 +815,7 @@ export function ExportDialog() {
                             {(uploadState) => (
                               <div class="flex flex-col gap-4 justify-center items-center">
                                 <h1 class="text-lg font-medium text-center text-gray-12">
-                                  Uploading Cap...
+                                  Uploading Klip...
                                 </h1>
                                 <Switch>
                                   <Match
@@ -859,7 +859,7 @@ export function ExportDialog() {
                                   Upload Complete
                                 </h1>
                                 <p class="text-sm text-gray-11">
-                                  Your Cap has been uploaded successfully
+                                  Your Klip has been uploaded successfully
                                 </p>
                               </div>
                             </div>

@@ -30,7 +30,7 @@ export default function Page() {
       <div class="text-left w-full py-2">
         <h2 class="text-gray-12 text-lg font-medium">Commercial License</h2>
         <p class="text-gray-11 text-sm">
-          Permits using Cap for commercial purposes, but without paying for
+          Permits using Klip for commercial purposes, but without paying for
           cloud features.
           <Show when={license.data?.type !== "pro"}>
             <br />
@@ -39,7 +39,7 @@ export default function Page() {
               class="underline cursor-pointer"
               onClick={() => commands.showWindow("Upgrade")}
             >
-              Upgrade to Cap Pro.
+              Upgrade to Klip Pro.
             </button>
           </Show>
         </p>
@@ -50,12 +50,12 @@ export default function Page() {
             <div class="space-y-4 text-center">
               <div class="flex flex-col gap-2 items-center mb-4">
                 <h3 class="text-2xl font-medium text-gray-12">
-                  Cap Pro License
+                  Klip Pro License
                 </h3>
               </div>
               <p class="text-gray-11">
                 Your account is upgraded to{" "}
-                <span class="font-semibold text-blue-400">Cap Pro</span> and
+                <span class="font-semibold text-blue-400">Klip Pro</span> and
                 already includes a commercial license.
               </p>
             </div>

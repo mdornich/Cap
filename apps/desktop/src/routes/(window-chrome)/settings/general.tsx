@@ -137,7 +137,7 @@ function Inner(props: { initialStore: GeneralSettingsStore | null }) {
           <ToggleSetting
             pro
             label="Disable automatic link opening"
-            description="When enabled, Cap will not automatically open links in your browser (e.g. after creating a shareable link)."
+            description="When enabled, Klip will not automatically open links in your browser (e.g. after creating a shareable link)."
             value={!!settings.disableAutoOpenLinks}
             onChange={(value) => handleChange("disableAutoOpenLinks", value)}
           />
@@ -160,7 +160,7 @@ function Inner(props: { initialStore: GeneralSettingsStore | null }) {
           )}
           <ToggleSetting
             label="Enable system notifications"
-            description="Show system notifications for events like copying to clipboard, saving files, and more. You may need to manually allow Cap access via your system's notification settings."
+            description="Show system notifications for events like copying to clipboard, saving files, and more. You may need to manually allow Klip access via your system's notification settings."
             value={!!settings.enableNotifications}
             onChange={async (value) => {
               if (value) {
@@ -288,8 +288,8 @@ function ServerURLSetting(props: {
 
   return (
     <Setting
-      label="Cap Server URL"
-      description="This setting should only be changed if you are self hosting your own instance of Cap Web."
+      label="Klip Server URL"
+      description="This setting should only be changed if you are self hosting your own instance of Klip Web."
     >
       <div class="flex flex-col gap-2 items-end">
         <TextInput

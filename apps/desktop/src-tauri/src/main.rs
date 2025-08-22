@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use cap_desktop::DynLoggingLayer;
+use klip_desktop::DynLoggingLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn main() {
@@ -69,5 +69,5 @@ fn main() {
         .enable_all()
         .build()
         .expect("Failed to build multi threaded tokio runtime")
-        .block_on(cap_desktop::run(handle));
+        .block_on(klip_desktop::run(handle));
 }
