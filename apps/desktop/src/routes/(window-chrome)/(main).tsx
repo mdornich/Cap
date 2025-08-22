@@ -248,20 +248,6 @@ function Page() {
 
           <ChangelogButton />
 
-          <Show when={!license.isLoading && license.data?.type === "personal"}>
-            <button
-              type="button"
-              onClick={() => commands.showWindow("Upgrade")}
-              class="flex relative justify-center items-center w-5 h-5"
-            >
-              <IconLucideGift class="text-gray-11 size-5 hover:text-gray-12" />
-              <div
-                style={{ "background-color": "#FF4747" }}
-                class="block z-10 absolute top-0 right-0 size-1.5 rounded-full animate-bounce"
-              />
-            </button>
-          </Show>
-
           {import.meta.env.DEV && (
             <button
               type="button"
