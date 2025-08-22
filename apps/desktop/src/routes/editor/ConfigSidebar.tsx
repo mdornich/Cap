@@ -132,6 +132,7 @@ const BACKGROUND_GRADIENTS = [
 
 const WALLPAPER_NAMES = [
   // macOS wallpapers
+  "macOS/stable-mischief",
   "macOS/sequoia-dark",
   "macOS/sequoia-light",
   "macOS/sonoma-clouds",
