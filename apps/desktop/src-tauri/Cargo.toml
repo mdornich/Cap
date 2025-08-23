@@ -1,6 +1,6 @@
 [package]
 name = "klip-desktop"
-version = "0.3.60"
+version = "0.0.1"
 description = "Beautiful screen recordings, owned by you."
 authors = ["you"]
 edition = "2021"

@@ -22,17 +22,14 @@ export default function AppsTab() {
       description:
         "Connect your own S3 bucket. All new shareable link uploads will be uploaded here. Maintain complete ownership over your data.",
       icon: IconLucideDatabase,
-      url: "/settings/integrations/s3-config",
+      url: "/settings/integrations/s3-config-preview",
       pro: true,
     },
   ];
 
   const handleAppClick = async (app: (typeof apps)[number]) => {
     try {
-      if (app.pro && !isPro()) {
-        await commands.showWindow("Upgrade");
-        return;
-      }
+      // Bypass Pro check for preview
       navigate(app.url);
     } catch (error) {
       console.error("Error handling app click:", error);
@@ -56,10 +53,10 @@ export default function AppsTab() {
                 </div>
               </div>
               <Button
-                variant={app.pro && !isPro() ? "primary" : "secondary"}
+                variant="secondary"
                 onClick={() => handleAppClick(app)}
               >
-                {app.pro && !isPro() ? "Upgrade to Pro" : "Configure"}
+                Configure
               </Button>
             </div>
             <div class="p-2">
