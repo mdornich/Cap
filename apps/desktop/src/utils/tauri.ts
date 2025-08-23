@@ -107,8 +107,8 @@ async openPermissionSettings(permission: OSPermission) : Promise<void> {
 async doPermissionsCheck(initialCheck: boolean) : Promise<OSPermissionsCheck> {
     return await TAURI_INVOKE("do_permissions_check", { initialCheck });
 },
-async requestPermission(permission: OSPermission) : Promise<void> {
-    await TAURI_INVOKE("request_permission", { permission });
+async requestPermission(permission: OSPermission) : Promise<boolean> {
+    return await TAURI_INVOKE("request_permission", { permission });
 },
 async uploadExportedVideo(path: string, mode: UploadMode) : Promise<UploadResult> {
     return await TAURI_INVOKE("upload_exported_video", { path, mode });

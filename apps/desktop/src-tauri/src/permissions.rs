@@ -144,7 +144,16 @@ pub struct OSPermissionsCheck {
 
 impl OSPermissionsCheck {
     pub fn necessary_granted(&self) -> bool {
-        self.screen_recording.permitted() && self.accessibility.permitted()
+        // Only screen recording is truly necessary
+        // Accessibility is optional (only needed for window focusing)
+        self.screen_recording.permitted()
+    }
+    
+    pub fn all_granted(&self) -> bool {
+        self.screen_recording.permitted() 
+            && self.accessibility.permitted()
+            && self.microphone.permitted()
+            && self.camera.permitted()
     }
 }
 
@@ -243,9 +252,20 @@ fn check_screen_recording_permission_via_window_list() -> bool {
 pub fn check_accessibility_permission() -> OSPermissionStatus {
     #[cfg(target_os = "macos")]
     {
-        if unsafe { AXIsProcessTrusted() } {
+        let is_trusted = unsafe { AXIsProcessTrusted() };
+        eprintln!("[Accessibility] AXIsProcessTrusted returned: {}", is_trusted);
+        
+        // In production, we might need to prompt the user
+        if is_trusted {
             OSPermissionStatus::Granted
         } else {
+            // Check if we're running in a production build
+            #[cfg(not(debug_assertions))]
+            {
+                eprintln!("[Accessibility] Production build detected, prompting for permission");
+                // Try to trigger the prompt
+                request_accessibility_permission();
+            }
             OSPermissionStatus::Denied
         }
     }
@@ -260,8 +280,10 @@ pub fn request_accessibility_permission() {
     #[cfg(target_os = "macos")]
     {
         use core_foundation::base::TCFType;
-        use core_foundation::dictionary::CFDictionary; // Import CFDictionaryRef
+        use core_foundation::dictionary::CFDictionary;
         use core_foundation::string::CFString;
+
+        eprintln!("[Accessibility] Requesting accessibility permission...");
 
         let prompt_key = CFString::new("AXTrustedCheckOptionPrompt");
         let prompt_value = core_foundation::boolean::CFBoolean::true_value();
@@ -269,8 +291,17 @@ pub fn request_accessibility_permission() {
         let options =
             CFDictionary::from_CFType_pairs(&[(prompt_key.as_CFType(), prompt_value.as_CFType())]);
 
-        unsafe {
-            AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef());
+        let result = unsafe {
+            AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef())
+        };
+        
+        eprintln!("[Accessibility] AXIsProcessTrustedWithOptions returned: {}", result);
+        
+        if !result {
+            eprintln!("[Accessibility] Permission not granted. User needs to:");
+            eprintln!("  1. Open System Settings > Privacy & Security > Accessibility");
+            eprintln!("  2. Add and enable Klip.app");
+            eprintln!("  3. Restart Klip after granting permission");
         }
     }
 }

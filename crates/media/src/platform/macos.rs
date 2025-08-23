@@ -35,14 +35,14 @@ pub fn get_on_screen_windows() -> Vec<Window> {
     let mut windows = Vec::new();
 
     unsafe {
-        // In production builds, we need to be more careful with window enumeration
-        // Try with different options to ensure we get windows even in sandboxed/hardened runtime
+        // Try multiple approaches to get window list
+        // First try: Standard flags (works in most cases)
         let mut cf_win_array = CGWindowListCopyWindowInfo(
             kCGWindowListExcludeDesktopElements | kCGWindowListOptionOnScreenOnly,
             kCGNullWindowID,
         );
         
-        // Fallback: If we get null, try with minimal options
+        // Second try: Only on-screen windows (less restrictive)
         if cf_win_array.is_null() {
             cf_win_array = CGWindowListCopyWindowInfo(
                 kCGWindowListOptionOnScreenOnly,
@@ -50,7 +50,7 @@ pub fn get_on_screen_windows() -> Vec<Window> {
             );
         }
         
-        // Final fallback: Try with no options at all
+        // Third try: All windows (most permissive)
         if cf_win_array.is_null() {
             cf_win_array = CGWindowListCopyWindowInfo(
                 0,
@@ -60,8 +60,20 @@ pub fn get_on_screen_windows() -> Vec<Window> {
 
         let window_count = match cf_win_array.is_null() {
             true => {
-                eprintln!("Warning: CGWindowListCopyWindowInfo returned null - Screen Recording permission may be missing");
-                return windows; // Return empty list instead of continuing
+                eprintln!("ERROR: CGWindowListCopyWindowInfo returned null");
+                eprintln!("This usually means:");
+                eprintln!("1. Screen Recording permission is not granted");
+                eprintln!("2. The app needs to be restarted after granting permission");
+                eprintln!("3. The app is running in a restricted environment");
+                
+                // Try to trigger permission request if not already granted
+                #[cfg(target_os = "macos")]
+                {
+                    // This will trigger the permission dialog if not granted
+                    let _ = scap::request_permission();
+                }
+                
+                return windows;
             },
             false => CFArrayGetCount(cf_win_array),
         };
