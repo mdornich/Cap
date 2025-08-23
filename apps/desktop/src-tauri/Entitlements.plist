@@ -28,5 +28,16 @@
     <true/>
     <key>com.apple.security.inherit</key>
     <true/>
+    <!-- Additional entitlements for production builds -->
+    <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+    <array>
+        <string>com.apple.CoreMediaIO.SystemObject</string>
+        <string>com.apple.coremedia.capturesource.connections</string>
+        <string>com.apple.tccd</string>
+    </array>
+    <key>com.apple.security.temporary-exception.files.absolute-path.read-only</key>
+    <array>
+        <string>/Library/Preferences/com.apple.security.plist</string>
+    </array>
 </dict>
 </plist>

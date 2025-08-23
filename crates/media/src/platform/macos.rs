@@ -35,13 +35,34 @@ pub fn get_on_screen_windows() -> Vec<Window> {
     let mut windows = Vec::new();
 
     unsafe {
-        let cf_win_array = CGWindowListCopyWindowInfo(
+        // In production builds, we need to be more careful with window enumeration
+        // Try with different options to ensure we get windows even in sandboxed/hardened runtime
+        let mut cf_win_array = CGWindowListCopyWindowInfo(
             kCGWindowListExcludeDesktopElements | kCGWindowListOptionOnScreenOnly,
             kCGNullWindowID,
         );
+        
+        // Fallback: If we get null, try with minimal options
+        if cf_win_array.is_null() {
+            cf_win_array = CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly,
+                kCGNullWindowID,
+            );
+        }
+        
+        // Final fallback: Try with no options at all
+        if cf_win_array.is_null() {
+            cf_win_array = CGWindowListCopyWindowInfo(
+                0,
+                kCGNullWindowID,
+            );
+        }
 
         let window_count = match cf_win_array.is_null() {
-            true => 0,
+            true => {
+                eprintln!("Warning: CGWindowListCopyWindowInfo returned null - Screen Recording permission may be missing");
+                return windows; // Return empty list instead of continuing
+            },
             false => CFArrayGetCount(cf_win_array),
         };
 

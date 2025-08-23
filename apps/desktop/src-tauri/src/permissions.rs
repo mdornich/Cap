@@ -55,19 +55,45 @@ pub fn open_permission_settings(permission: OSPermission) {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn request_permission(permission: OSPermission) {
+pub async fn request_permission(permission: OSPermission) -> bool {
     #[cfg(target_os = "macos")]
     {
         use cap_media::platform::AVMediaType;
+        use std::time::Duration;
+        use tokio::time::sleep;
 
         match permission {
             OSPermission::ScreenRecording => {
                 scap::request_permission();
+                // Wait a bit for the permission to be processed
+                sleep(Duration::from_millis(500)).await;
+                // Check if permission was granted
+                scap::has_permission() || check_screen_recording_permission_via_window_list()
             }
-            OSPermission::Camera => request_av_permission(AVMediaType::Video),
-            OSPermission::Microphone => request_av_permission(AVMediaType::Audio),
-            OSPermission::Accessibility => request_accessibility_permission(),
+            OSPermission::Camera => {
+                request_av_permission(AVMediaType::Video);
+                // Wait for permission dialog to be processed
+                sleep(Duration::from_millis(500)).await;
+                matches!(check_av_permission(AVMediaType::Video), OSPermissionStatus::Granted)
+            },
+            OSPermission::Microphone => {
+                request_av_permission(AVMediaType::Audio);
+                // Wait for permission dialog to be processed
+                sleep(Duration::from_millis(500)).await;
+                matches!(check_av_permission(AVMediaType::Audio), OSPermissionStatus::Granted)
+            },
+            OSPermission::Accessibility => {
+                request_accessibility_permission();
+                // Wait a bit for the permission to be processed
+                sleep(Duration::from_millis(500)).await;
+                matches!(check_accessibility_permission(), OSPermissionStatus::Granted)
+            },
         }
+    }
+    
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
     }
 }
 
@@ -122,26 +148,27 @@ impl OSPermissionsCheck {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn check_av_permission(media_type: cap_media::platform::AVMediaType) -> OSPermissionStatus {
+    use cap_media::platform::AVAuthorizationStatus;
+    use objc::*;
+
+    let cls = objc::class!(AVCaptureDevice);
+    let status: AVAuthorizationStatus =
+        unsafe { msg_send![cls, authorizationStatusForMediaType:media_type.into_ns_str()] };
+    match status {
+        AVAuthorizationStatus::NotDetermined => OSPermissionStatus::Empty,
+        AVAuthorizationStatus::Authorized => OSPermissionStatus::Granted,
+        _ => OSPermissionStatus::Denied,
+    }
+}
+
 #[tauri::command(async)]
 #[specta::specta]
 pub fn do_permissions_check(initial_check: bool) -> OSPermissionsCheck {
     #[cfg(target_os = "macos")]
     {
         use cap_media::platform::AVMediaType;
-
-        fn check_av_permission(media_type: AVMediaType) -> OSPermissionStatus {
-            use cap_media::platform::AVAuthorizationStatus;
-            use objc::*;
-
-            let cls = objc::class!(AVCaptureDevice);
-            let status: AVAuthorizationStatus =
-                unsafe { msg_send![cls, authorizationStatusForMediaType:media_type.into_ns_str()] };
-            match status {
-                AVAuthorizationStatus::NotDetermined => OSPermissionStatus::Empty,
-                AVAuthorizationStatus::Authorized => OSPermissionStatus::Granted,
-                _ => OSPermissionStatus::Denied,
-            }
-        }
 
         OSPermissionsCheck {
             screen_recording: {
@@ -191,20 +218,25 @@ fn check_screen_recording_permission_via_window_list() -> bool {
     }
     
     unsafe {
+        // kCGWindowListOptionAll = 0
         // kCGWindowListOptionOnScreenOnly = 1 << 0
+        // kCGWindowListExcludeDesktopElements = 1 << 4
         // kCGNullWindowID = 0
-        let window_list_ptr = CGWindowListCopyWindowInfo(1, 0);
+        
+        // Try with minimal options first (more reliable in production)
+        let window_list_ptr = CGWindowListCopyWindowInfo(0, 0);
         
         if window_list_ptr.is_null() {
-            // If we get null, we don't have permission
+            // If we get null with minimal options, we definitely don't have permission
             return false;
         }
         
         // We got a window list, so we have permission
         let window_list = CFArray::<CFDictionary>::wrap_under_create_rule(window_list_ptr);
         
-        // Check if we got any windows (additional validation)
-        window_list.len() > 0
+        // In production, even with permission, the list might be empty initially
+        // So we just check that we got a non-null list
+        true
     }
 }
 
