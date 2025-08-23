@@ -145,7 +145,15 @@ pub fn do_permissions_check(initial_check: bool) -> OSPermissionsCheck {
 
         OSPermissionsCheck {
             screen_recording: {
-                let result = scap::has_permission();
+                // First try scap
+                let mut result = scap::has_permission();
+                
+                // If scap says no, double-check using CGWindowListCopyWindowInfo
+                // This works because it returns nil if we don't have permission
+                if !result {
+                    result = check_screen_recording_permission_via_window_list();
+                }
+                
                 match (result, initial_check) {
                     (true, _) => OSPermissionStatus::Granted,
                     (false, true) => OSPermissionStatus::Empty,
@@ -166,6 +174,37 @@ pub fn do_permissions_check(initial_check: bool) -> OSPermissionsCheck {
             camera: OSPermissionStatus::NotNeeded,
             accessibility: OSPermissionStatus::NotNeeded,
         }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn check_screen_recording_permission_via_window_list() -> bool {
+    use core_foundation::array::CFArray;
+    use core_foundation::base::{CFType, TCFType};
+    use core_foundation::dictionary::CFDictionary;
+    use core_foundation::number::CFNumber;
+    use core_foundation::string::CFString;
+    
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGWindowListCopyWindowInfo(option: u32, relativeToWindow: u32) -> *const core_foundation::array::__CFArray;
+    }
+    
+    unsafe {
+        // kCGWindowListOptionOnScreenOnly = 1 << 0
+        // kCGNullWindowID = 0
+        let window_list_ptr = CGWindowListCopyWindowInfo(1, 0);
+        
+        if window_list_ptr.is_null() {
+            // If we get null, we don't have permission
+            return false;
+        }
+        
+        // We got a window list, so we have permission
+        let window_list = CFArray::<CFDictionary>::wrap_under_create_rule(window_list_ptr);
+        
+        // Check if we got any windows (additional validation)
+        window_list.len() > 0
     }
 }
 

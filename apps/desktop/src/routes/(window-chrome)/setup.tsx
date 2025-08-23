@@ -170,7 +170,7 @@ export default function () {
           </div>
 
           <Button class="px-12" size="lg" onClick={handleContinue}>
-            Continue to Cap
+            Continue to Klip
           </Button>
         </Show>
       </div>

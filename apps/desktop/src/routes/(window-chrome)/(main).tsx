@@ -163,14 +163,14 @@ function Page() {
     target: (): ScreenCaptureTarget => {
       switch (rawOptions.captureTarget.variant) {
         case "screen":
-          return { variant: "screen", id: options.screen()?.id ?? -1 };
+          return { variant: "screen", id: options.screen()?.id ?? _screens()?.[0]?.id ?? 0 };
         case "window":
-          return { variant: "window", id: options.window()?.id ?? -1 };
+          return { variant: "window", id: options.window()?.id ?? _windows()?.[0]?.id ?? 0 };
         case "area":
           return {
             variant: "area",
             bounds: rawOptions.captureTarget.bounds,
-            screen: options.screen()?.id ?? -1,
+            screen: options.screen()?.id ?? _screens()?.[0]?.id ?? 0,
           };
       }
     },
@@ -183,7 +183,7 @@ function Page() {
         "captureTarget",
         reconcile({
           variant: "screen",
-          id: options.screen()?.id ?? -1,
+          id: options.screen()?.id ?? _screens()?.[0]?.id ?? 0,
         })
       );
     }
@@ -314,7 +314,7 @@ function Page() {
                 "captureTarget",
                 reconcile({
                   variant: "screen",
-                  id: options.screen()?.id ?? -1,
+                  id: options.screen()?.id ?? _screens()?.[0]?.id ?? 0,
                 })
               );
           }}
@@ -451,7 +451,6 @@ function useRequestPermission() {
       if (type === "camera") {
         await commands.resetCameraPermissions();
       } else if (type === "microphone") {
-        console.log("wowzers");
         await commands.resetMicrophonePermissions();
       }
       await commands.requestPermission(type);
@@ -948,6 +947,9 @@ function TargetSelectInfoPill<T>(props: {
         e.stopPropagation();
       }}
       onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
         if (!props.permissionGranted) {
           props.requestPermission();
           return;
