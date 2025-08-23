@@ -411,6 +411,34 @@ export function ConfigSidebar() {
               />
             </Field>
           )}
+          <Field
+            name="Audio/Video Sync"
+            icon={<IconLucideClock class="size-4" />}
+          >
+            <div class="text-xs text-gray-400 mb-2">
+              Adjust if audio is out of sync with video
+            </div>
+            <Slider
+              value={[project.audio.syncOffsetMs ?? 0]}
+              onChange={(v) => setProject("audio", "syncOffsetMs", v[0])}
+              minValue={-2000}
+              maxValue={2000}
+              step={10}
+              formatTooltip={(v) => {
+                if (v === 0) return "No offset";
+                const absValue = Math.abs(v);
+                const direction = v > 0 ? "ahead" : "behind";
+                return `${absValue}ms (audio ${direction})`;
+              }}
+            />
+            <div class="text-xs text-gray-400 mt-1 text-center">
+              {project.audio.syncOffsetMs === 0 
+                ? "Audio and video are in sync" 
+                : project.audio.syncOffsetMs > 0 
+                  ? `Audio plays ${project.audio.syncOffsetMs}ms earlier`
+                  : `Audio plays ${Math.abs(project.audio.syncOffsetMs)}ms later`}
+            </div>
+          </Field>
         </KTabs.Content>
         <KTabs.Content value="cursor" class="flex flex-col gap-6">
           <Field

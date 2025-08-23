@@ -307,6 +307,8 @@ pub struct AudioConfiguration {
     pub mic_stereo_mode: StereoMode,
     #[serde(default)]
     pub system_volume_db: f32,
+    #[serde(default)]
+    pub sync_offset_ms: f32,
 }
 
 impl Default for AudioConfiguration {
@@ -317,6 +319,7 @@ impl Default for AudioConfiguration {
             mic_volume_db: 0.0,
             mic_stereo_mode: StereoMode::default(),
             system_volume_db: 0.0,
+            sync_offset_ms: 0.0,
         }
     }
 }
