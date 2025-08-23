@@ -586,6 +586,76 @@ Create sharing messages for video content.
 
 ---
 
+## User Interface & Controls
+
+### Quick Caption Toggle
+**Priority:** Medium | **Complexity:** Low (2-3 days)
+**Requested by:** @mitchdornich | **Date:** 2025-08-23
+
+Add a quick-access caption toggle button to the editor toolbar for instant captions on/off during video playback.
+
+**Benefits:**
+- Instant caption visibility toggle without opening config sidebar
+- Improved accessibility workflow
+- Better user experience for caption review and editing
+- Quick testing of caption appearance during editing
+
+**Technical Requirements:**
+- Connect existing placeholder button to caption display logic
+- Add state management for caption visibility toggle
+- Integrate with existing transcription system (Whisper/Deepgram)
+- Handle caption overlay rendering on video player
+
+**Implementation Notes:**
+- UI placeholder already exists in `apps/desktop/src/routes/editor/Header.tsx:138-142`
+- Icon (`IconCapCaptions`) and tooltip ("Captions") already implemented
+- Remove `comingSoon` prop and add `onClick` handler
+- Existing transcription system available in `CaptionsTab.tsx` and `captions.rs`
+- WebVTT format support already implemented
+
+**Considerations:**
+- Should integrate with existing caption styling options
+- May need caption positioning controls
+- Consider keyboard shortcut support
+
+---
+
+### Performance Monitor Dashboard
+**Priority:** Low | **Complexity:** Medium (1-2 weeks)  
+**Requested by:** @mitchdornich | **Date:** 2025-08-23
+
+Add a performance monitoring button to the editor toolbar showing real-time stats during video editing and export.
+
+**Benefits:**
+- Real-time performance insights (CPU, memory, GPU usage)
+- Export/render progress tracking with detailed metrics
+- Video processing optimization feedback
+- Debugging tool for performance issues
+- Frame rate monitoring during playback
+
+**Technical Requirements:**
+- Implement system performance monitoring APIs
+- Create performance dashboard UI component  
+- Add metrics collection for video processing pipeline
+- Export progress tracking with detailed statistics
+- Memory usage monitoring for large video files
+- GPU utilization tracking for hardware acceleration
+
+**Implementation Notes:**
+- UI placeholder already exists in `apps/desktop/src/routes/editor/Header.tsx:144-147`
+- Icon (`IconCapGauge`) and tooltip ("Performance") already implemented
+- Remove `comingSoon` prop and add `onClick` handler
+- Could integrate with existing Tauri system APIs
+- Consider using system monitoring crates (sysinfo, etc.)
+
+**Considerations:**
+- Performance impact of monitoring itself
+- Different metrics needed for different platforms (macOS/Windows/Linux)
+- Privacy considerations for system monitoring
+- Should be toggleable to avoid performance overhead when not needed
+
+---
+
 ## How to Contribute
 
 When adding new feature ideas:
