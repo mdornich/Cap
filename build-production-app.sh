@@ -30,9 +30,18 @@ pnpm build:tauri
 # Step 3: Check if build was successful
 if [ -f "src-tauri/target/release/bundle/dmg/Klip_0.0.1_aarch64.dmg" ] || [ -f "src-tauri/target/release/bundle/dmg/Klip_0.0.1_x64.dmg" ]; then
     echo -e "${GREEN}✅ Build successful!${NC}"
+    
+    # Rename DMG to simple "Klip.dmg"
+    echo -e "${YELLOW}📝 Renaming DMG to Klip.dmg...${NC}"
+    if [ -f "src-tauri/target/release/bundle/dmg/Klip_0.0.1_aarch64.dmg" ]; then
+        mv "src-tauri/target/release/bundle/dmg/Klip_0.0.1_aarch64.dmg" "src-tauri/target/release/bundle/dmg/Klip.dmg"
+    elif [ -f "src-tauri/target/release/bundle/dmg/Klip_0.0.1_x64.dmg" ]; then
+        mv "src-tauri/target/release/bundle/dmg/Klip_0.0.1_x64.dmg" "src-tauri/target/release/bundle/dmg/Klip.dmg"
+    fi
+    
     echo ""
     echo "📁 Your installer is ready at:"
-    ls -la src-tauri/target/release/bundle/dmg/*.dmg
+    ls -la src-tauri/target/release/bundle/dmg/Klip.dmg
     echo ""
     echo "🎯 Next steps:"
     echo "1. Test the .dmg file by opening it"
@@ -60,7 +69,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     read -s APPLE_PASSWORD
     
     # Find the DMG file
-    DMG_FILE=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n 1)
+    DMG_FILE="src-tauri/target/release/bundle/dmg/Klip.dmg"
     
     echo -e "${YELLOW}📤 Submitting for notarization...${NC}"
     xcrun notarytool submit "$DMG_FILE" \

@@ -48,7 +48,7 @@
     },
     "macOS": {
       "dmg": {
-        "background": "assets/dmg-background.png",
+        "background": "assets/dmg-background-klip.png",
         "appPosition": {
           "x": 180,
           "y": 140
