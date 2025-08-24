@@ -118,8 +118,8 @@ pub fn init(app: &AppHandle) {
 async fn handle_hotkey(app: AppHandle, action: HotkeyAction) -> Result<(), String> {
     match action {
         HotkeyAction::StartRecording => {
-            // Use toggle logic for StartRecording to support pause/resume
-            recording::toggle_recording(app.clone(), app.state()).await
+            let _ = RequestStartRecording.emit(&app);
+            Ok(())
         }
         HotkeyAction::StopRecording => recording::stop_recording(app.clone(), app.state()).await,
         HotkeyAction::RestartRecording => {
