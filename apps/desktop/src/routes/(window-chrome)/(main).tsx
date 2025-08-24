@@ -90,6 +90,18 @@ function Page() {
   });
 
   onMount(() => {
+    // Listen for hotkey recording request
+    const unlistenHotkey = events.requestStartRecording.listen(async () => {
+      console.log("Hotkey triggered - starting recording");
+      if (!isRecording()) {
+        await commands.startRecording({
+          capture_target: options.target(),
+          mode: rawOptions.mode,
+          capture_system_audio: rawOptions.captureSystemAudio,
+        });
+      }
+    });
+
     // Enforce window size with multiple safeguards
     const currentWindow = getCurrentWindow();
 
@@ -112,6 +124,7 @@ function Page() {
     });
 
     onCleanup(async () => {
+      (await unlistenHotkey)?.();
       (await unlistenFocus)?.();
       (await unlistenResize)?.();
     });
