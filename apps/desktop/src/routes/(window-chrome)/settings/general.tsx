@@ -19,7 +19,7 @@ import {
 } from "~/utils/tauri";
 // import { themeStore } from "~/store/theme";
 import { CheckMenuItem, Menu } from "@tauri-apps/api/menu";
-import { confirm } from "@tauri-apps/plugin-dialog";
+import { confirm, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { cx } from "cva";
 import themePreviewAuto from "~/assets/theme-previews/auto.jpg";
 import themePreviewDark from "~/assets/theme-previews/dark.jpg";
@@ -185,6 +185,49 @@ function Inner(props: { initialStore: GeneralSettingsStore | null }) {
               handleChange("enableNotifications", value);
             }}
           />
+          <Setting
+            label="Instant mode save location"
+            description="Choose where instant recordings are saved locally (bypasses upload)"
+          >
+            <div class="flex flex-row gap-2 items-center">
+              <input
+                type="text"
+                class="flex-1 px-2 py-1 rounded-md border border-gray-5 bg-gray-3 text-gray-12 text-sm"
+                placeholder="Default location"
+                value={settings.instantModeSavePath ?? ""}
+                readonly
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={async () => {
+                  const selected = await openDialog({
+                    directory: true,
+                    multiple: false,
+                    title: "Select folder for instant recordings"
+                  });
+                  if (selected) {
+                    handleChange("instantModeSavePath", selected);
+                    await commands.setInstantSavePath(selected);
+                  }
+                }}
+              >
+                Browse
+              </Button>
+              {settings.instantModeSavePath && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    handleChange("instantModeSavePath", null);
+                    await commands.setInstantSavePath(null);
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+          </Setting>
           {/* <ToggleSetting
             label="Enable window transparency"
             description="Make the background of some windows (eg. the Editor) transparent."

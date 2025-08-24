@@ -1,5 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
+use chrono::Local;
+
 use crate::{
     audio::AppSounds,
     auth::AuthStore,
@@ -211,12 +213,33 @@ pub async fn start_recording(
 ) -> Result<(), String> {
     let id = uuid::Uuid::new_v4().to_string();
 
-    let recording_dir = app
-        .path()
-        .app_data_dir()
-        .unwrap()
-        .join("recordings")
-        .join(format!("{id}.cap"));
+    // For instant mode with custom save path, use that directory
+    let recording_dir = if matches!(inputs.mode, RecordingMode::Instant) {
+        if let Some(custom_path) = GeneralSettingsStore::get(&app)
+            .ok()
+            .flatten()
+            .and_then(|s| s.instant_mode_save_path)
+        {
+            // Use custom path for instant recordings
+            let custom_dir = std::path::PathBuf::from(custom_path);
+            ensure_dir(&custom_dir).map_err(|e| format!("Failed to create custom save directory: {e}"))?;
+            custom_dir.join(format!("{}.cap", chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")))
+        } else {
+            // Default to app data directory
+            app.path()
+                .app_data_dir()
+                .unwrap()
+                .join("recordings")
+                .join(format!("{id}.cap"))
+        }
+    } else {
+        // Studio mode always uses app data directory
+        app.path()
+            .app_data_dir()
+            .unwrap()
+            .join("recordings")
+            .join(format!("{id}.cap"))
+    };
 
     ensure_dir(&recording_dir).map_err(|e| format!("Failed to create recording directory: {e}"))?;
     let logfile = std::fs::File::create(recording_dir.join("recording-logs.log"))
@@ -259,8 +282,11 @@ pub async fn start_recording(
         let _ = window.set_content_protected(matches!(inputs.mode, RecordingMode::Studio));
     }
 
-    let video_upload_info = match inputs.mode {
+    let video_upload_info: Option<VideoUploadInfo> = match inputs.mode {
         RecordingMode::Instant => {
+            // AUTH BYPASS: Allow instant mode without authentication for local development
+            // Original auth check commented out to allow instant recording without sign-in
+            /*
             match AuthStore::get(&app).ok().flatten() {
                 Some(_) => {
                     // Pre-create the video and get the shareable link
@@ -293,6 +319,8 @@ pub async fn start_recording(
                     return Err("Please sign in to use instant recording".to_string());
                 }
             }
+            */
+            None // No upload info since we're bypassing auth
         }
         RecordingMode::Studio => None,
     };
@@ -323,19 +351,9 @@ pub async fn start_recording(
         _ => {}
     }
 
-    let (finish_upload_tx, finish_upload_rx) = flume::bounded(1);
-    let progressive_upload = video_upload_info
-        .as_ref()
-        .filter(|_| matches!(inputs.mode, RecordingMode::Instant))
-        .map(|video_upload_info| {
-            InstantMultipartUpload::spawn(
-                app.clone(),
-                id.clone(),
-                recording_dir.join("content/output.mp4"),
-                video_upload_info.clone(),
-                Some(finish_upload_rx),
-            )
-        });
+    let (finish_upload_tx, _finish_upload_rx) = flume::bounded(1);
+    // AUTH BYPASS: Since we're bypassing auth, instant upload is disabled
+    let progressive_upload: Option<InstantMultipartUpload> = None;
 
     println!("spawning actor");
 
@@ -383,27 +401,30 @@ pub async fn start_recording(
                     )
                 }
                 RecordingMode::Instant => {
-                    let Some(video_upload_info) = video_upload_info.clone() else {
-                        return Err("Video upload info not found".to_string());
-                    };
-
+                    // AUTH BYPASS: Use studio recording actor for instant mode when not authenticated
+                    // This will save the recording locally instead of uploading
                     let (handle, actor_done_rx) =
-                        cap_recording::instant_recording::spawn_instant_recording_actor(
+                        cap_recording::studio_recording::spawn_studio_recording_actor(
                             id.clone(),
                             recording_dir.clone(),
                             base_inputs,
+                            state.camera_feed.clone(),
+                            GeneralSettingsStore::get(&app)
+                                .ok()
+                                .flatten()
+                                .map(|s| s.custom_cursor_capture)
+                                .unwrap_or_default(),
                         )
                         .await
                         .map_err(|e| {
-                            error!("Failed to spawn studio recording actor: {e}");
+                            error!("Failed to spawn recording actor: {e}");
                             e.to_string()
                         })?;
 
+                    // Treat it as a studio recording internally but keep the instant mode flag
                     (
-                        InProgressRecording::Instant {
+                        InProgressRecording::Studio {
                             handle,
-                            progressive_upload,
-                            video_upload_info,
                             target_name,
                             inputs,
                             recording_dir: recording_dir.clone(),
@@ -772,33 +793,64 @@ async fn handle_recording_finish(
         .map_err(|e| format!("Failed to save recording meta: {e}"))?;
 
     if let RecordingMetaInner::Studio(_) = meta.inner {
-        match GeneralSettingsStore::get(&app)
-            .ok()
-            .flatten()
-            .map(|v| v.post_studio_recording_behaviour)
-            .unwrap_or(PostStudioRecordingBehaviour::OpenEditor)
-        {
-            PostStudioRecordingBehaviour::OpenEditor => {
-                let _ = ShowCapWindow::Editor {
-                    project_path: recording_dir,
-                }
-                .show(&app)
-                .await;
-            }
-            PostStudioRecordingBehaviour::ShowOverlay => {
-                let _ = ShowCapWindow::RecordingsOverlay.show(&app).await;
+        // Check if this was originally an instant mode recording with custom save path
+        let general_settings = GeneralSettingsStore::get(&app).ok().flatten();
+        let is_instant_with_custom_path = general_settings
+            .as_ref()
+            .and_then(|s| s.instant_mode_save_path.as_ref())
+            .map(|path| recording_dir.to_str().unwrap_or("").contains(&path.replace("~", &dirs::home_dir().unwrap().to_str().unwrap())))
+            .unwrap_or(false);
 
-                let app = AppHandle::clone(app);
-                tokio::spawn(async move {
-                    tokio::time::sleep(Duration::from_millis(1000)).await;
-
-                    let _ = NewStudioRecordingAdded {
-                        path: recording_dir.clone(),
+        if is_instant_with_custom_path {
+            // For instant mode with custom path, just copy the output file and open the folder
+            info!("Instant mode recording saved to custom path: {:?}", recording_dir);
+            
+            // Find the output video file
+            let output_files = vec![
+                recording_dir.join("content/output.mp4"),
+                recording_dir.join("content/display.mp4"),
+                recording_dir.join("display.mp4"),
+            ];
+            
+            for output_file in output_files {
+                if output_file.exists() {
+                    // Open the containing folder
+                    if let Some(parent) = output_file.parent() {
+                        if let Some(parent_str) = parent.to_str() {
+                            let _ = open_external_link(app.clone(), format!("file://{}", parent_str));
+                        }
                     }
-                    .emit(&app);
-                });
+                    break;
+                }
             }
-        };
+        } else {
+            // Normal studio mode behavior
+            match general_settings
+                .map(|v| v.post_studio_recording_behaviour)
+                .unwrap_or(PostStudioRecordingBehaviour::OpenEditor)
+            {
+                PostStudioRecordingBehaviour::OpenEditor => {
+                    let _ = ShowCapWindow::Editor {
+                        project_path: recording_dir,
+                    }
+                    .show(&app)
+                    .await;
+                }
+                PostStudioRecordingBehaviour::ShowOverlay => {
+                    let _ = ShowCapWindow::RecordingsOverlay.show(&app).await;
+
+                    let app = AppHandle::clone(app);
+                    tokio::spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+                        let _ = NewStudioRecordingAdded {
+                            path: recording_dir.clone(),
+                        }
+                        .emit(&app);
+                    });
+                }
+            };
+        }
     }
 
     // Play sound to indicate recording has stopped

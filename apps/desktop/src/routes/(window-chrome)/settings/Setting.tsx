@@ -9,11 +9,6 @@ export function Setting(props: {
   return (
     <div class="flex flex-row gap-2 justify-between items-start py-3 text-sm">
       <div class="flex flex-col justify-between items-start space-y-2">
-        {props.pro && (
-          <span class="px-2 py-1 text-xs font-medium rounded-lg text-solid-white bg-blue-9">
-            Klip Pro
-          </span>
-        )}
         <div class="flex gap-2 items-center">
           <p class="text-gray-12">{props.label}</p>
         </div>

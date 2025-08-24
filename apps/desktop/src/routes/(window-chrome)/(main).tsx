@@ -410,18 +410,12 @@ function Page() {
       />
       <SystemAudio />
       <div class="flex items-center space-x-1 w-full">
-        {rawOptions.mode === "instant" && !auth.data ? (
-          <SignInButton>
-            Sign In for{" "}
-            <IconCapInstant class="size-[0.8rem] ml-[0.14rem] mr-0.5" />
-            Instant Mode
-          </SignInButton>
-        ) : (
-          <Button
-            disabled={toggleRecording.isPending}
-            variant={isRecording() ? "destructive" : "primary"}
-            size="md"
-            onClick={() => toggleRecording.mutate()}
+        {/* AUTH BYPASS: Removed auth check for instant mode - always show record button */}
+        <Button
+          disabled={toggleRecording.isPending}
+          variant={isRecording() ? "destructive" : "primary"}
+          size="md"
+          onClick={() => toggleRecording.mutate()}
             class="flex flex-grow justify-center items-center"
           >
             {isRecording() ? (
@@ -437,7 +431,6 @@ function Page() {
               </>
             )}
           </Button>
-        )}
       </div>
     </div>
   );

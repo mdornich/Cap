@@ -60,6 +60,8 @@ pub struct GeneralSettingsStore {
     #[serde(default, alias = "open_editor_after_recording")]
     #[deprecated]
     _open_editor_after_recording: bool,
+    #[serde(default)]
+    pub instant_mode_save_path: Option<String>,
 }
 
 fn default_server_url() -> String {
@@ -97,6 +99,7 @@ impl Default for GeneralSettingsStore {
             custom_cursor_capture: false,
             server_url: default_server_url(),
             _open_editor_after_recording: false,
+            instant_mode_save_path: None,
         }
     }
 }
@@ -165,4 +168,19 @@ pub fn init(app: &AppHandle) {
     store.save(app).unwrap();
 
     println!("GeneralSettingsState managed");
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_instant_save_path(app: AppHandle, path: Option<String>) -> Result<(), String> {
+    GeneralSettingsStore::update(&app, |settings| {
+        settings.instant_mode_save_path = path;
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_instant_save_path(app: AppHandle) -> Result<Option<String>, String> {
+    Ok(GeneralSettingsStore::get(&app)?
+        .and_then(|s| s.instant_mode_save_path))
 }

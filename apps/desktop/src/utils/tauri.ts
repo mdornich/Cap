@@ -238,6 +238,12 @@ async deleteWhisperModel(modelPath: string) : Promise<null> {
  */
 async exportCaptionsSrt(videoId: string) : Promise<string | null> {
     return await TAURI_INVOKE("export_captions_srt", { videoId });
+},
+async setInstantSavePath(path: string | null) : Promise<null> {
+    return await TAURI_INVOKE("set_instant_save_path", { path });
+},
+async getInstantSavePath() : Promise<string | null> {
+    return await TAURI_INVOKE("get_instant_save_path");
 }
 }
 
@@ -334,7 +340,7 @@ export type GeneralSettingsStore = { instanceId?: string; uploadIndividualFiles?
 /**
  * @deprecated
  */
-openEditorAfterRecording?: boolean }
+openEditorAfterRecording?: boolean; instantModeSavePath?: string | null }
 export type GifExportSettings = { fps: number; resolution_base: XY<number> }
 export type HapticPattern = "Alignment" | "LevelChange" | "Generic"
 export type HapticPerformanceTime = "Default" | "Now" | "DrawCompleted"

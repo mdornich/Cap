@@ -1810,7 +1810,9 @@ pub async fn run(recording_logging_handle: LoggingHandle) {
             captions::download_whisper_model,
             captions::check_model_exists,
             captions::delete_whisper_model,
-            captions::export_captions_srt
+            captions::export_captions_srt,
+            general_settings::set_instant_save_path,
+            general_settings::get_instant_save_path
         ])
         .events(tauri_specta::collect_events![
             RecordingOptionsChanged,
