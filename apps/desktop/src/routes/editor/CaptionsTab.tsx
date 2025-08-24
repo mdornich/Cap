@@ -845,7 +845,7 @@ export function CaptionsTab() {
                           </MenuItem>
                         )}
                       >
-                        <KSelect.Trigger class="w-full flex items-center justify-between rounded-lg shadow px-3 py-2 bg-white border border-gray-300">
+                        <KSelect.Trigger class="w-full flex items-center justify-between rounded-lg shadow px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white transition-colors">
                           <KSelect.Value<string>>
                             {(state) =>
                               fontOptions.find(
@@ -854,7 +854,7 @@ export function CaptionsTab() {
                             }
                           </KSelect.Value>
                           <KSelect.Icon>
-                            <IconCapChevronDown />
+                            <IconCapChevronDown class="text-gray-300" />
                           </KSelect.Icon>
                         </KSelect.Trigger>
                         <KSelect.Portal>
@@ -949,7 +949,7 @@ export function CaptionsTab() {
                       </MenuItem>
                     )}
                   >
-                    <KSelect.Trigger class="w-full flex items-center justify-between rounded-lg shadow px-3 py-2 bg-white border border-gray-300">
+                    <KSelect.Trigger class="w-full flex items-center justify-between rounded-lg shadow px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white transition-colors">
                       <KSelect.Value<string>>
                         {(state) => (
                           <span class="capitalize">
@@ -958,7 +958,7 @@ export function CaptionsTab() {
                         )}
                       </KSelect.Value>
                       <KSelect.Icon>
-                        <IconCapChevronDown />
+                        <IconCapChevronDown class="text-gray-300" />
                       </KSelect.Icon>
                     </KSelect.Trigger>
                     <KSelect.Portal>

@@ -1,11 +1,10 @@
 use crate::{recording, RequestStartRecording};
-use global_hotkey::HotKeyState;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 use tauri_specta::Event;
 
@@ -40,7 +39,7 @@ impl Hotkey {
     }
 }
 
-#[derive(Serialize, Deserialize, Type, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Type, PartialEq, Eq, Hash, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum HotkeyAction {
     StartRecording,
@@ -69,7 +68,8 @@ pub fn init(app: &AppHandle) {
     app.plugin(
         tauri_plugin_global_shortcut::Builder::new()
             .with_handler(|app, shortcut, event| {
-                if !matches!(event.state(), HotKeyState::Pressed) {
+                println!("Hotkey event received: {:?} - State: {:?}", shortcut, event.state());
+                if !matches!(event.state(), ShortcutState::Pressed) {
                     return;
                 }
 
@@ -77,8 +77,22 @@ pub fn init(app: &AppHandle) {
                 let store = state.lock().unwrap();
 
                 for (action, hotkey) in &store.hotkeys {
-                    if &hotkey.to_shortcut() == shortcut {
-                        tokio::spawn(handle_hotkey(app.clone(), *action));
+                    // Create a new shortcut for comparison to avoid ID mismatch
+                    let test_shortcut = hotkey.to_shortcut();
+                    // Convert both to debug strings for comparison since we can't access internal fields
+                    let test_str = format!("{:?}", test_shortcut);
+                    let received_str = format!("{:?}", shortcut);
+                    
+                    // Extract just the key and modifiers part, ignoring the ID
+                    if let (Some(test_parts), Some(received_parts)) = (
+                        test_str.split(", id:").next(),
+                        received_str.split(", id:").next()
+                    ) {
+                        println!("Comparing: {} == {}", test_parts, received_parts);
+                        if test_parts == received_parts {
+                            println!("Triggering hotkey action: {:?}", action);
+                            tokio::spawn(handle_hotkey(app.clone(), *action));
+                        }
                     }
                 }
             })
@@ -90,8 +104,11 @@ pub fn init(app: &AppHandle) {
 
     let global_shortcut = app.global_shortcut();
 
-    for hotkey in store.hotkeys.values() {
-        global_shortcut.register(hotkey.to_shortcut()).ok();
+    println!("Registering {} hotkeys", store.hotkeys.len());
+    for (action, hotkey) in &store.hotkeys {
+        let shortcut = hotkey.to_shortcut();
+        let result = global_shortcut.register(shortcut.clone());
+        println!("Registering hotkey for {:?}: {:?} - Result: {:?}", action, shortcut, result);
     }
 
     app.manage(Mutex::new(store));
