@@ -98,6 +98,8 @@ pub struct App {
     #[serde(skip)]
     current_recording: Option<InProgressRecording>,
     #[serde(skip)]
+    recording_is_paused: bool,
+    #[serde(skip)]
     recording_logging_handle: LoggingHandle,
     server_url: String,
 }
@@ -1942,6 +1944,7 @@ pub async fn run(recording_logging_handle: LoggingHandle) {
                     mic_samples_tx: audio_input_tx,
                     mic_feed: None,
                     current_recording: None,
+                    recording_is_paused: false,
                     recording_logging_handle,
                     server_url: GeneralSettingsStore::get(&app)
                         .ok()

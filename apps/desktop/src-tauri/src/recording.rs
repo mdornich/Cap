@@ -435,6 +435,7 @@ pub async fn start_recording(
             };
 
             state.set_current_recording(actor);
+            state.recording_is_paused = false;
 
             Ok::<_, String>(actor_done_rx)
         }
@@ -514,6 +515,7 @@ pub async fn pause_recording(state: MutableState<'_, App>) -> Result<(), String>
 
     if let Some(recording) = state.current_recording.as_mut() {
         recording.pause().await.map_err(|e| e.to_string())?;
+        state.recording_is_paused = true;
     }
 
     Ok(())
@@ -526,9 +528,37 @@ pub async fn resume_recording(state: MutableState<'_, App>) -> Result<(), String
 
     if let Some(recording) = state.current_recording.as_mut() {
         recording.resume().await.map_err(|e| e.to_string())?;
+        state.recording_is_paused = false;
     }
 
     Ok(())
+}
+
+pub async fn toggle_recording(app: AppHandle, state: MutableState<'_, App>) -> Result<(), String> {
+    // Check if a recording is currently in progress
+    let is_recording = {
+        let state = state.read().await;
+        state.current_recording.is_some()
+    };
+
+    if !is_recording {
+        // No recording in progress - emit event to start recording
+        // The frontend will handle this event and call start_recording
+        let _ = crate::RequestStartRecording.emit(&app);
+        Ok(())
+    } else {
+        // Recording is in progress - toggle between pause and resume
+        let is_paused = {
+            let state = state.read().await;
+            state.recording_is_paused
+        };
+
+        if is_paused {
+            resume_recording(state).await
+        } else {
+            pause_recording(state).await
+        }
+    }
 }
 
 #[tauri::command]
@@ -612,6 +642,7 @@ async fn handle_recording_end(
 ) -> Result<(), String> {
     // Clear current recording, just in case :)
     app.current_recording.take();
+    app.recording_is_paused = false;
 
     if let Some(recording) = recording {
         handle_recording_finish(&handle, recording).await?;

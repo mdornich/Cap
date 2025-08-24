@@ -45,6 +45,7 @@ pub enum HotkeyAction {
     StartRecording,
     StopRecording,
     RestartRecording,
+    ToggleRecording,
     // TakeScreenshot,
 }
 
@@ -123,6 +124,9 @@ async fn handle_hotkey(app: AppHandle, action: HotkeyAction) -> Result<(), Strin
         HotkeyAction::StopRecording => recording::stop_recording(app.clone(), app.state()).await,
         HotkeyAction::RestartRecording => {
             recording::restart_recording(app.clone(), app.state()).await
+        }
+        HotkeyAction::ToggleRecording => {
+            recording::toggle_recording(app.clone(), app.state()).await
         }
     }
 }
