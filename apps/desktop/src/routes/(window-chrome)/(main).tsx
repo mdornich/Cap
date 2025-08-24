@@ -65,6 +65,9 @@ function Page() {
   const generalSettings = generalSettingsStore.createQuery();
 
   const isRecording = () => !!currentRecording.data;
+  
+  // Track hotkey toggle state: true = next press starts, false = next press pauses
+  const [hotkeyStartsRecording, setHotkeyStartsRecording] = createSignal(true);
 
   const license = createLicenseQuery();
 
@@ -89,16 +92,40 @@ function Page() {
     }
   });
 
+  // Reset toggle state when recording stops
+  createEffect(() => {
+    if (!isRecording()) {
+      setHotkeyStartsRecording(true);
+    }
+  });
+
   onMount(() => {
-    // Listen for hotkey recording request
+    // Listen for hotkey recording request with toggle functionality
     const unlistenHotkey = events.requestStartRecording.listen(async () => {
-      console.log("Hotkey triggered - starting recording");
+      console.log("Hotkey triggered - toggle mode:", hotkeyStartsRecording() ? "START" : "PAUSE");
+      
       if (!isRecording()) {
+        // Not recording - always start
+        console.log("Starting recording via hotkey");
         await commands.startRecording({
           capture_target: options.target(),
           mode: rawOptions.mode,
           capture_system_audio: rawOptions.captureSystemAudio,
         });
+        setHotkeyStartsRecording(false); // Next press will pause
+      } else {
+        // Recording in progress - toggle pause/resume
+        if (hotkeyStartsRecording()) {
+          // Resume recording
+          console.log("Resuming recording via hotkey");
+          await commands.resumeRecording();
+          setHotkeyStartsRecording(false); // Next press will pause
+        } else {
+          // Pause recording
+          console.log("Pausing recording via hotkey");
+          await commands.pauseRecording();
+          setHotkeyStartsRecording(true); // Next press will resume
+        }
       }
     });
 
