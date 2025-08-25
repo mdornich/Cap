@@ -514,7 +514,6 @@ pub async fn pause_recording(state: MutableState<'_, App>) -> Result<(), String>
 
     if let Some(recording) = state.current_recording.as_mut() {
         recording.pause().await.map_err(|e| e.to_string())?;
-        state.is_recording_paused = true;
     }
 
     Ok(())
@@ -527,7 +526,6 @@ pub async fn resume_recording(state: MutableState<'_, App>) -> Result<(), String
 
     if let Some(recording) = state.current_recording.as_mut() {
         recording.resume().await.map_err(|e| e.to_string())?;
-        state.is_recording_paused = false;
     }
 
     Ok(())
