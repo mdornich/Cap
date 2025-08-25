@@ -1,4 +1,6 @@
-use crate::{recording, RequestStartRecording};
+use crate::{recording, App};
+use cap_media::sources::{list_screens, ScreenCaptureTarget};
+use cap_recording::RecordingMode;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
@@ -117,8 +119,33 @@ pub fn init(app: &AppHandle) {
 async fn handle_hotkey(app: AppHandle, action: HotkeyAction) -> Result<(), String> {
     match action {
         HotkeyAction::StartRecording => {
-            let _ = RequestStartRecording.emit(&app);
-            Ok(())
+            // Check if already recording
+            let state = app.state::<crate::ArcLock<App>>();
+            let is_recording = state.read().await.current_recording.is_some();
+            
+            if is_recording {
+                // If already recording, don't start a new one
+                return Ok(());
+            }
+            
+            // Get the first available screen for default capture
+            let primary_screen = list_screens()
+                .into_iter()
+                .next()
+                .map(|(s, _)| s);
+            
+            if let Some(screen) = primary_screen {
+                // Start recording with default options (full screen capture)
+                let inputs = recording::StartRecordingInputs {
+                    capture_target: ScreenCaptureTarget::Screen { id: screen.id },
+                    mode: RecordingMode::Studio,
+                    capture_system_audio: true,
+                };
+                
+                recording::start_recording(app.clone(), app.state(), inputs).await
+            } else {
+                Err("No screens available for recording".to_string())
+            }
         }
         HotkeyAction::StopRecording => recording::stop_recording(app.clone(), app.state()).await,
         HotkeyAction::RestartRecording => {
