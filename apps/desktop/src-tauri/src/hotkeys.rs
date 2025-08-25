@@ -119,32 +119,47 @@ pub fn init(app: &AppHandle) {
 async fn handle_hotkey(app: AppHandle, action: HotkeyAction) -> Result<(), String> {
     match action {
         HotkeyAction::StartRecording => {
-            // Check if already recording
+            // Get app state to check recording status
             let state = app.state::<crate::ArcLock<App>>();
-            let is_recording = state.read().await.current_recording.is_some();
+            let app_state = state.read().await;
             
-            if is_recording {
-                // If already recording, don't start a new one
-                return Ok(());
-            }
+            // Check current recording state
+            let has_recording = app_state.current_recording.is_some();
+            let is_paused = app_state.is_recording_paused;
             
-            // Get the first available screen for default capture
-            let primary_screen = list_screens()
-                .into_iter()
-                .next()
-                .map(|(s, _)| s);
+            // Release the read lock before performing actions
+            drop(app_state);
             
-            if let Some(screen) = primary_screen {
-                // Start recording with default options (full screen capture)
-                let inputs = recording::StartRecordingInputs {
-                    capture_target: ScreenCaptureTarget::Screen { id: screen.id },
-                    mode: RecordingMode::Studio,
-                    capture_system_audio: true,
-                };
-                
-                recording::start_recording(app.clone(), app.state(), inputs).await
-            } else {
-                Err("No screens available for recording".to_string())
+            match (has_recording, is_paused) {
+                // No recording - start a new one
+                (false, _) => {
+                    // Get the first available screen for default capture
+                    let primary_screen = list_screens()
+                        .into_iter()
+                        .next()
+                        .map(|(s, _)| s);
+                    
+                    if let Some(screen) = primary_screen {
+                        // Start recording with default options (full screen capture)
+                        let inputs = recording::StartRecordingInputs {
+                            capture_target: ScreenCaptureTarget::Screen { id: screen.id },
+                            mode: RecordingMode::Studio,
+                            capture_system_audio: true,
+                        };
+                        
+                        recording::start_recording(app.clone(), app.state(), inputs).await
+                    } else {
+                        Err("No screens available for recording".to_string())
+                    }
+                }
+                // Recording active - pause it
+                (true, false) => {
+                    recording::pause_recording(app.state()).await
+                }
+                // Recording paused - resume it
+                (true, true) => {
+                    recording::resume_recording(app.state()).await
+                }
             }
         }
         HotkeyAction::StopRecording => recording::stop_recording(app.clone(), app.state()).await,
