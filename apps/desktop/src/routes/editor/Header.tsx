@@ -13,16 +13,19 @@ import {
   onMount,
   Show,
 } from "solid-js";
+import { createEventListener } from "@solid-primitives/event-listener";
 
 import { Button } from "@cap/ui-solid";
 import CaptionControlsWindows11 from "~/components/titlebar/controls/CaptionControlsWindows11";
 import Tooltip from "~/components/Tooltip";
 import { trackEvent } from "~/utils/analytics";
 import { initializeTitlebar } from "~/utils/titlebar-state";
-import { useEditorContext } from "./context";
+import { useEditorContext, FPS, OUTPUT_SIZE } from "./context";
 import PresetsDropdown from "./PresetsDropdown";
 import ShareButton from "./ShareButton";
 import { EditorButton } from "./ui";
+import { captionsStore } from "~/store/captions";
+import { events } from "~/utils/tauri";
 
 export type ResolutionOption = {
   label: string;
@@ -52,11 +55,43 @@ export function Header() {
     exportState,
     setExportState,
     customDomain,
+    project,
+    setProject,
+    editorState,
   } = useEditorContext();
 
   let unlistenTitlebar: UnlistenFn | undefined;
   onMount(async () => {
     unlistenTitlebar = await initializeTitlebar();
+    
+    // Add keyboard shortcut for caption toggle
+    createEventListener(document, 'keydown', (e: KeyboardEvent) => {
+      // Check if 'C' key is pressed without modifiers
+      if (e.key === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        // Don't trigger if user is typing in an input field
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+        
+        // Check if captions exist
+        if (!project?.captions?.segments?.length) {
+          console.log("No captions available. Please generate captions first.");
+          return;
+        }
+        
+        // Toggle captions
+        const newEnabledState = !captionsStore.state.settings.enabled;
+        captionsStore.updateSettings({ enabled: newEnabledState });
+        
+        if (project?.captions) {
+          setProject("captions", "settings", "enabled", newEnabledState);
+          events.renderFrameEvent.emit({
+            frame_number: Math.floor(editorState.playbackTime * FPS),
+            fps: FPS,
+            resolution_base: OUTPUT_SIZE,
+          });
+        }
+      }
+    });
   });
   onCleanup(() => unlistenTitlebar?.());
 
@@ -136,9 +171,46 @@ export function Header() {
           </ErrorBoundary> */}
         <div data-tauri-drag-region class="flex-1 h-full" />
         <EditorButton
-          tooltipText="Captions"
+          tooltipText={
+            !project?.captions?.segments?.length 
+              ? "Generate Captions First" 
+              : captionsStore.state.settings.enabled 
+                ? "Hide Captions (C)" 
+                : "Show Captions (C)"
+          }
           leftIcon={<IconCapCaptions class="w-5" />}
-          comingSoon
+          onClick={() => {
+            // Check if captions exist
+            if (!project?.captions?.segments?.length) {
+              console.log("No captions available. Please generate captions first.");
+              return;
+            }
+            
+            // Toggle the caption enabled state
+            const newEnabledState = !captionsStore.state.settings.enabled;
+            
+            // Update the captions store
+            captionsStore.updateSettings({ enabled: newEnabledState });
+            
+            // Update the project configuration
+            if (project?.captions) {
+              setProject("captions", "settings", "enabled", newEnabledState);
+              
+              // Force a frame re-render to update the video with/without captions
+              events.renderFrameEvent.emit({
+                frame_number: Math.floor(editorState.playbackTime * FPS),
+                fps: FPS,
+                resolution_base: OUTPUT_SIZE,
+              });
+            }
+          }}
+          class={
+            project?.captions?.segments?.length 
+              ? captionsStore.state.settings.enabled 
+                ? "bg-blue-500/20 text-blue-600" 
+                : ""
+              : "opacity-50"
+          }
         />
         <EditorButton
           tooltipText="Performance"

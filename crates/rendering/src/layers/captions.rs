@@ -1,8 +1,8 @@
 use bytemuck::{Pod, Zeroable};
 use cap_project::XY;
 use glyphon::{
-    Attrs, Buffer, Cache, Color, Family, FontSystem, Metrics, Resolution, Shaping, SwashCache,
-    TextArea, TextAtlas, TextBounds, TextRenderer, Viewport,
+    Attrs, Buffer, Cache, Color, Family, FontSystem, Metrics, Resolution, Shaping, Style, SwashCache,
+    TextArea, TextAtlas, TextBounds, TextRenderer, Viewport, Weight,
 };
 use log::{debug, info, warn};
 use wgpu::{util::DeviceExt, Device, Queue};
@@ -29,8 +29,10 @@ pub struct CaptionSettings {
     pub position: u32, // 0 = top, 1 = middle, 2 = bottom
     pub outline: u32,  // 0 = disabled, 1 = enabled
     pub outline_color: [f32; 4],
-    pub font: u32,          // 0 = SansSerif, 1 = Serif, 2 = Monospace
-    pub _padding: [f32; 1], // for alignment
+    pub font: u32,     // 0 = SansSerif, 1 = Serif, 2 = Monospace
+    pub bold: u32,     // 0 = disabled, 1 = enabled
+    pub italic: u32,   // 0 = disabled, 1 = enabled
+    pub _padding: [f32; 2], // for alignment (increased for new fields)
 }
 
 impl Default for CaptionSettings {
@@ -44,7 +46,9 @@ impl Default for CaptionSettings {
             outline: 1,                             // enabled
             outline_color: [0.0, 0.0, 0.0, 1.0],    // black
             font: 0,                                // SansSerif
-            _padding: [0.0],
+            bold: 1,                                // enabled
+            italic: 0,                              // disabled
+            _padding: [0.0, 0.0],
         }
     }
 }
@@ -59,6 +63,9 @@ pub struct CaptionsLayer {
     text_buffer: Buffer,
     current_text: Option<String>,
     current_segment_time: f32,
+    current_bold: u32,
+    current_italic: u32,
+    current_font: u32,
     viewport: Viewport,
 }
 
@@ -99,6 +106,9 @@ impl CaptionsLayer {
             text_buffer,
             current_text: None,
             current_segment_time: 0.0,
+            current_bold: 1, // default from CaptionSettings::default()
+            current_italic: 0,
+            current_font: 0,
             viewport,
         }
     }
@@ -111,21 +121,9 @@ impl CaptionsLayer {
     /// Update the current caption text and timing
     pub fn update_caption(&mut self, text: Option<String>, time: f32) {
         debug!("Updating caption - Text: {:?}, Time: {}", text, time);
-        if self.current_text != text {
-            if let Some(content) = &text {
-                info!("Setting new caption text: {}", content);
-                // Update the text buffer with new content
-                let metrics = Metrics::new(24.0, 24.0 * 1.2);
-                self.text_buffer = Buffer::new_empty(metrics);
-                self.text_buffer.set_text(
-                    &mut self.font_system,
-                    content,
-                    &Attrs::new(),
-                    Shaping::Advanced,
-                );
-            }
-            self.current_text = text;
-        }
+        // Only update the stored text, don't modify the buffer here
+        // The buffer will be updated in prepare() with proper styling
+        self.current_text = text;
         self.current_segment_time = time;
     }
 
@@ -181,10 +179,14 @@ impl CaptionsLayer {
                             "System Monospace" => 2,
                             _ => 0, // Default to SansSerif for "System Sans-Serif" and any other value
                         },
-                        _padding: [0.0],
+                        bold: if caption_data.settings.bold { 1 } else { 0 },
+                        italic: if caption_data.settings.italic { 1 } else { 0 },
+                        _padding: [0.0, 0.0],
                     };
 
-                    self.update_caption(Some(caption_text), current_time);
+                    // Update the current caption text
+                    let text_changed = self.current_text.as_ref() != Some(&caption_text);
+                    self.update_caption(Some(caption_text.clone()), current_time);
 
                     if settings.enabled == 0 {
                         return;
@@ -194,6 +196,7 @@ impl CaptionsLayer {
                         return;
                     }
 
+                    // Only recreate buffer if text changed or styles changed
                     if let Some(text) = &self.current_text {
                         let (width, height) = (output_size.x, output_size.y);
 
@@ -226,14 +229,20 @@ impl CaptionsLayer {
                         let font_size = settings.font_size * (height as f32 / 1080.0); // Scale font size based on resolution
                         let metrics = Metrics::new(font_size, font_size * 1.2); // 1.2 line height
 
-                        // Create a new buffer with explicit size for this frame
-                        let mut updated_buffer = Buffer::new(&mut self.font_system, metrics);
+                        // Check if styles have changed
+                        let styles_changed = self.current_bold != settings.bold ||
+                                           self.current_italic != settings.italic ||
+                                           self.current_font != settings.font;
 
-                        // Set explicit width to enable proper text wrapping and centering
-                        // Set width to 90% of screen width for better appearance
+                        // Set width for text wrapping
                         let text_width = width as f32 * 0.9;
-                        updated_buffer.set_size(&mut self.font_system, Some(text_width), None);
-                        updated_buffer.set_wrap(&mut self.font_system, glyphon::Wrap::Word);
+
+                        // Always recreate buffer to ensure clean state
+                        // This prevents any corruption from style changes
+                        info!("Creating fresh text buffer - font_size: {}, width: {}", font_size, text_width);
+                        self.text_buffer = Buffer::new(&mut self.font_system, metrics);
+                        self.text_buffer.set_size(&mut self.font_system, Some(text_width), None);
+                        self.text_buffer.set_wrap(&mut self.font_system, glyphon::Wrap::Word);
 
                         // Position text in the center horizontally
                         // The bounds dictate the rendering area
@@ -252,18 +261,33 @@ impl CaptionsLayer {
                             2 => Family::Monospace,
                             _ => Family::SansSerif, // Default to SansSerif for any other value
                         };
-                        let attrs = Attrs::new().family(font_family).color(color);
+                        
+                        // Build text attributes with style settings
+                        let mut attrs = Attrs::new().family(font_family).color(color);
+                        
+                        // Apply bold style if enabled
+                        if settings.bold == 1 {
+                            attrs = attrs.weight(Weight::BOLD);
+                        }
+                        
+                        // Apply italic style if enabled
+                        if settings.italic == 1 {
+                            attrs = attrs.style(Style::Italic);
+                        }
 
-                        // Apply text to buffer
-                        updated_buffer.set_text(
+                        // Apply text to buffer with the styled attributes
+                        // Always set text since we're recreating the buffer
+                        info!("Setting text with attributes - bold: {}, italic: {}, font: {}", settings.bold, settings.italic, settings.font);
+                        self.text_buffer.set_text(
                             &mut self.font_system,
                             text,
                             &attrs,
                             Shaping::Advanced,
                         );
-
-                        // Replace the existing buffer
-                        self.text_buffer = updated_buffer;
+                        // Update current style state
+                        self.current_bold = settings.bold;
+                        self.current_italic = settings.italic;
+                        self.current_font = settings.font;
 
                         // Update the viewport with explicit resolution
                         self.viewport.update(queue, Resolution { width, height });
@@ -337,6 +361,8 @@ impl CaptionsLayer {
                         });
 
                         // Prepare text rendering
+                        let text_areas_count = text_areas.len();
+                        info!("Preparing text renderer with {} text areas", text_areas_count);
                         match self.text_renderer.prepare(
                             device,
                             queue,
@@ -346,8 +372,15 @@ impl CaptionsLayer {
                             text_areas,
                             &mut self.swash_cache,
                         ) {
-                            Ok(_) => {}
-                            Err(e) => warn!("Error preparing text: {:?}", e),
+                            Ok(_) => {
+                                info!("Text renderer prepared successfully");
+                            }
+                            Err(e) => {
+                                warn!("Error preparing text: {:?}", e);
+                                // Log more details about the error
+                                warn!("Text areas count: {}", text_areas_count);
+                                warn!("Buffer metrics: font_size={}", font_size);
+                            }
                         }
                     }
                 } else {

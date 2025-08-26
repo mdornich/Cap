@@ -16,6 +16,7 @@ import type { CaptionSettings, CaptionSegment } from "~/utils/tauri";
 import { Field, Slider, Subfield, Input } from "./ui";
 import { useEditorContext, FPS, OUTPUT_SIZE } from "./context";
 import { commands, events } from "~/utils/tauri";
+import { captionsStore } from "~/store/captions";
 
 // Model information
 interface ModelOption {
@@ -191,30 +192,6 @@ export function CaptionsTab() {
     }
   );
 
-  // Sync caption settings with project and update player
-  createEffect(() => {
-    if (!project?.captions) return;
-
-    const settings = captionSettings;
-
-    // Only update if there are actual changes
-    if (
-      JSON.stringify(settings) !== JSON.stringify(project.captions.settings)
-    ) {
-      batch(() => {
-        // Update project settings
-        setProject("captions", "settings", settings);
-
-        // Force player refresh
-        events.renderFrameEvent.emit({
-          frame_number: Math.floor(editorState.playbackTime * FPS),
-          fps: FPS,
-          resolution_base: OUTPUT_SIZE,
-        });
-      });
-    }
-  });
-
   // Sync project settings to local store
   createEffect(() => {
     if (project?.captions?.settings) {
@@ -237,14 +214,16 @@ export function CaptionsTab() {
       [key]: value,
     });
 
-    // For font changes, force an immediate player update
-    if (key === "font") {
-      events.renderFrameEvent.emit({
-        frame_number: Math.floor(editorState.playbackTime * FPS),
-        fps: FPS,
-        resolution_base: OUTPUT_SIZE,
-      });
-    }
+    // Update project settings
+    setProject("captions", "settings", {
+      ...project.captions.settings,
+      [key]: value,
+    });
+
+    // Update global captions store
+    captionsStore.updateSettings({
+      [key]: value,
+    });
   };
 
   // Restore scroll position after any content changes
@@ -493,6 +472,8 @@ export function CaptionsTab() {
       if (result && result.segments.length > 0) {
         // Update project with the new segments
         setProject("captions", "segments", result.segments);
+        // Update global captions store with the new segments
+        captionsStore.updateSegments(result.segments);
         updateCaptionSetting("enabled", true);
         toast.success("Captions generated successfully!");
       } else {
