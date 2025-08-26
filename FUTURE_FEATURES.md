@@ -2,6 +2,50 @@
 
 This document tracks potential future features and enhancements for Cap/Klip. Features are organized by category and include implementation complexity estimates.
 
+## 🎯 What's Next - Priority Queue
+
+### Immediate Priorities (This Week)
+1. **Video Transcription** *(Already partially complete)*
+   - ✅ Basic transcription working with microphone audio
+   - ⏳ Need to handle mixed audio sources better
+   - ⏳ Add language selection UI
+   - ⏳ Improve transcription accuracy with better models
+
+2. **Closed Captioning Display**
+   - Build on completed transcription work
+   - Implement WebVTT/SRT export
+   - Add caption editing interface
+   - Burn-in option for exported videos
+
+3. **Collaborative Feedback on Shareable Links**
+   - Timestamp-based commenting
+   - Threaded discussions
+   - Real-time updates
+
+### Next Sprint (Next 2 Weeks)
+1. **Filler Word Removal** - Clean up recordings automatically
+2. **Silence Removal** - Make videos more concise
+3. **Auto-generate Bug Reports** - Jira/Linear integration
+4. **Multi-language Transcription** - Expand beyond English
+
+### Backlog (1-2 Months)
+1. **Cloudflare Stream Integration** - Alternative storage provider
+2. **Detailed Engagement Analytics** - Viewer behavior insights
+3. **Auto Summaries** - AI-generated video summaries
+4. **Transform Videos into Text Documents** - Content repurposing
+
+---
+
+## Recently Completed ✅
+
+See [COMPLETED_FEATURES.md](./COMPLETED_FEATURES.md) for full list of implemented features.
+
+- **Quick Caption Toggle** (2025-08-26) - Keyboard shortcut 'C' with visual feedback
+- **Transcription Fixes** (2025-08-26) - Fixed crashes, improved mic audio handling
+- **Command+R Recording Hotkey** (2025-08-25) - Global recording shortcuts
+
+---
+
 ## Storage & Infrastructure
 
 ### Cloudflare Stream Integration
