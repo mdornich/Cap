@@ -192,30 +192,6 @@ export function CaptionsTab() {
     }
   );
 
-  // Sync caption settings with project and update player
-  createEffect(() => {
-    if (!project?.captions) return;
-
-    const settings = captionSettings;
-
-    // Only update if there are actual changes
-    if (
-      JSON.stringify(settings) !== JSON.stringify(project.captions.settings)
-    ) {
-      batch(() => {
-        // Update project settings
-        setProject("captions", "settings", settings);
-
-        // Force player refresh
-        events.renderFrameEvent.emit({
-          frame_number: Math.floor(editorState.playbackTime * FPS),
-          fps: FPS,
-          resolution_base: OUTPUT_SIZE,
-        });
-      });
-    }
-  });
-
   // Sync project settings to local store
   createEffect(() => {
     if (project?.captions?.settings) {
@@ -238,19 +214,16 @@ export function CaptionsTab() {
       [key]: value,
     });
 
+    // Update project settings
+    setProject("captions", "settings", {
+      ...project.captions.settings,
+      [key]: value,
+    });
+
     // Update global captions store
     captionsStore.updateSettings({
       [key]: value,
     });
-
-    // For font changes, force an immediate player update
-    if (key === "font") {
-      events.renderFrameEvent.emit({
-        frame_number: Math.floor(editorState.playbackTime * FPS),
-        fps: FPS,
-        resolution_base: OUTPUT_SIZE,
-      });
-    }
   };
 
   // Restore scroll position after any content changes

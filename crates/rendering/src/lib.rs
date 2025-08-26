@@ -902,12 +902,13 @@ impl<'a> FrameRenderer<'a> {
 }
 
 pub struct RendererLayers {
-    background: BackgroundLayer,
-    background_blur: BlurLayer,
-    display: DisplayLayer,
-    cursor: CursorLayer,
-    camera: CameraLayer,
-    captions: CaptionsLayer,
+    pub(crate) background: BackgroundLayer,
+    pub(crate) background_blur: BlurLayer,
+    pub(crate) display: DisplayLayer,
+    pub(crate) cursor: CursorLayer,
+    pub(crate) camera: CameraLayer,
+    pub(crate) captions: CaptionsLayer,
+    pub(crate) camera_enabled: bool,
 }
 
 impl RendererLayers {
@@ -919,6 +920,7 @@ impl RendererLayers {
             cursor: CursorLayer::new(device),
             camera: CameraLayer::new(device),
             captions: CaptionsLayer::new(device, queue),
+            camera_enabled: false,
         }
     }
 
@@ -958,18 +960,21 @@ impl RendererLayers {
             constants,
         );
 
-        if let (Some(camera_size), Some(camera_frame), Some(uniforms)) = (
-            constants.options.camera_size,
-            &segment_frames.camera_frame,
-            &uniforms.camera,
-        ) {
-            self.camera.prepare(
-                &constants.device,
-                &constants.queue,
-                *uniforms,
-                camera_size,
-                camera_frame,
-            );
+        self.camera_enabled = !uniforms.project.camera.hide;
+        if self.camera_enabled {
+            if let (Some(camera_size), Some(camera_frame), Some(camera_uniforms)) = (
+                constants.options.camera_size,
+                &segment_frames.camera_frame,
+                &uniforms.camera,
+            ) {
+                self.camera.prepare(
+                    &constants.device,
+                    &constants.queue,
+                    *camera_uniforms,
+                    camera_size,
+                    camera_frame,
+                );
+            }
         }
 
         if let Some(captions) = &uniforms.project.captions {
@@ -1035,7 +1040,7 @@ impl RendererLayers {
             self.cursor.render(&mut pass);
         }
 
-        {
+        if self.camera_enabled {
             let mut pass = render_pass!(session.current_texture_view(), wgpu::LoadOp::Load);
             self.camera.render(&mut pass);
         }
