@@ -588,9 +588,10 @@ Create sharing messages for video content.
 
 ## User Interface & Controls
 
-### Quick Caption Toggle
+### ✅ Quick Caption Toggle
 **Priority:** Medium | **Complexity:** Low (2-3 days)
 **Requested by:** @mitchdornich | **Date:** 2025-08-23
+**Status:** ✅ COMPLETED | **Completed:** 2025-08-25
 
 Add a quick-access caption toggle button to the editor toolbar for instant captions on/off during video playback.
 
@@ -600,59 +601,31 @@ Add a quick-access caption toggle button to the editor toolbar for instant capti
 - Better user experience for caption review and editing
 - Quick testing of caption appearance during editing
 
-**Technical Requirements:**
-- Connect existing placeholder button to caption display logic
-- Add state management for caption visibility toggle
-- Integrate with existing transcription system (Whisper/Deepgram)
-- Handle caption overlay rendering on video player
-
-**Implementation Notes:**
-- UI placeholder already exists in `apps/desktop/src/routes/editor/Header.tsx:138-142`
-- Icon (`IconCapCaptions`) and tooltip ("Captions") already implemented
-- Remove `comingSoon` prop and add `onClick` handler
-- Existing transcription system available in `CaptionsTab.tsx` and `captions.rs`
-- WebVTT format support already implemented
-
-**Considerations:**
-- Should integrate with existing caption styling options
-- May need caption positioning controls
-- Consider keyboard shortcut support
+**Implementation Completed:**
+- ✅ Connected caption button to caption display logic
+- ✅ Added state management for caption visibility toggle
+- ✅ Integrated with existing transcription system
+- ✅ Syncs with caption settings panel
+- ✅ Keyboard shortcut 'C' implemented
+- ✅ Visual feedback (button highlights when enabled)
+- ✅ Smart state checking (disabled when no captions exist)
+- ✅ Proper synchronization between global store and local state
 
 ---
 
-### Performance Monitor Dashboard
-**Priority:** Low | **Complexity:** Medium (1-2 weeks)  
+### ~~Performance Monitor Dashboard~~ (Deprioritized)
+**Priority:** ~~Low~~ | **Complexity:** ~~Medium (1-2 weeks)~~  
 **Requested by:** @mitchdornich | **Date:** 2025-08-23
+**Status:** ⚠️ DEPRIORITIZED - Button reserved for future functionality
 
-Add a performance monitoring button to the editor toolbar showing real-time stats during video editing and export.
+~~Add a performance monitoring button to the editor toolbar showing real-time stats during video editing and export.~~
 
-**Benefits:**
-- Real-time performance insights (CPU, memory, GPU usage)
-- Export/render progress tracking with detailed metrics
-- Video processing optimization feedback
-- Debugging tool for performance issues
-- Frame rate monitoring during playback
+**Note:** Performance monitoring deemed not worth the implementation effort. The existing UI button (gauge icon) will be repurposed for other functionality in the future.
 
-**Technical Requirements:**
-- Implement system performance monitoring APIs
-- Create performance dashboard UI component  
-- Add metrics collection for video processing pipeline
-- Export progress tracking with detailed statistics
-- Memory usage monitoring for large video files
-- GPU utilization tracking for hardware acceleration
-
-**Implementation Notes:**
-- UI placeholder already exists in `apps/desktop/src/routes/editor/Header.tsx:144-147`
-- Icon (`IconCapGauge`) and tooltip ("Performance") already implemented
-- Remove `comingSoon` prop and add `onClick` handler
-- Could integrate with existing Tauri system APIs
-- Consider using system monitoring crates (sysinfo, etc.)
-
-**Considerations:**
-- Performance impact of monitoring itself
-- Different metrics needed for different platforms (macOS/Windows/Linux)
-- Privacy considerations for system monitoring
-- Should be toggleable to avoid performance overhead when not needed
+**UI Status:**
+- Button exists in `apps/desktop/src/routes/editor/Header.tsx`
+- Icon (`IconCapGauge`) placeholder remains
+- Marked as `comingSoon` - available for reassignment
 
 ---
 

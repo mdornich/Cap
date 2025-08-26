@@ -16,6 +16,7 @@ import type { CaptionSettings, CaptionSegment } from "~/utils/tauri";
 import { Field, Slider, Subfield, Input } from "./ui";
 import { useEditorContext, FPS, OUTPUT_SIZE } from "./context";
 import { commands, events } from "~/utils/tauri";
+import { captionsStore } from "~/store/captions";
 
 // Model information
 interface ModelOption {
@@ -234,6 +235,11 @@ export function CaptionsTab() {
     // Update local store
     setCaptionSettings({
       ...captionSettings,
+      [key]: value,
+    });
+
+    // Update global captions store
+    captionsStore.updateSettings({
       [key]: value,
     });
 
@@ -493,6 +499,8 @@ export function CaptionsTab() {
       if (result && result.segments.length > 0) {
         // Update project with the new segments
         setProject("captions", "segments", result.segments);
+        // Update global captions store with the new segments
+        captionsStore.updateSegments(result.segments);
         updateCaptionSetting("enabled", true);
         toast.success("Captions generated successfully!");
       } else {
