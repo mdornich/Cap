@@ -263,7 +263,7 @@ impl Default for Camera {
             hide: false,
             mirror: false,
             position: CameraPosition::default(),
-            size: 30.0,
+            size: 20.0,
             zoom_size: Some(Self::default_zoom_size()),
             rounding: Self::default_rounding(),
             shadow: 62.5,
