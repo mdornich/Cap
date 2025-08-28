@@ -53,6 +53,29 @@ impl Default for CaptionSettings {
     }
 }
 
+/// Vertex data for background quad
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+struct QuadVertex {
+    position: [f32; 2],
+    color: [f32; 4],
+}
+
+impl QuadVertex {
+    const ATTRIBS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
+        0 => Float32x2,  // position
+        1 => Float32x4,  // color
+    ];
+
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<QuadVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBS,
+        }
+    }
+}
+
 /// Caption layer that renders text using GPU
 pub struct CaptionsLayer {
     settings_buffer: wgpu::Buffer,
@@ -67,6 +90,12 @@ pub struct CaptionsLayer {
     current_italic: u32,
     current_font: u32,
     viewport: Viewport,
+    // Background rendering resources
+    background_pipeline: wgpu::RenderPipeline,
+    background_vertex_buffer: wgpu::Buffer,
+    background_index_buffer: wgpu::Buffer,
+    current_background_bounds: Option<TextBounds>,
+    current_background_color: [f32; 4],
 }
 
 impl CaptionsLayer {
@@ -97,6 +126,100 @@ impl CaptionsLayer {
         let metrics = Metrics::new(24.0, 24.0 * 1.2); // Default font size and line height
         let text_buffer = Buffer::new_empty(metrics);
 
+        // Create background rendering resources
+        let shader_source = r#"
+            struct VertexInput {
+                @location(0) position: vec2<f32>,
+                @location(1) color: vec4<f32>,
+            };
+
+            struct VertexOutput {
+                @builtin(position) position: vec4<f32>,
+                @location(0) color: vec4<f32>,
+            };
+
+            @vertex
+            fn vs_main(input: VertexInput) -> VertexOutput {
+                var output: VertexOutput;
+                // Convert from pixel coordinates to NDC
+                // Assuming viewport of 1920x1080 (will be adjusted in prepare)
+                output.position = vec4<f32>(
+                    input.position.x,
+                    input.position.y,
+                    0.0,
+                    1.0
+                );
+                output.color = input.color;
+                return output;
+            }
+
+            @fragment
+            fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
+                return input.color;
+            }
+        "#;
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Caption Background Shader"),
+            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Caption Background Pipeline Layout"),
+            bind_group_layouts: &[],  // No bind groups needed - color comes from vertex data
+            push_constant_ranges: &[],
+        });
+
+        let background_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Caption Background Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[QuadVertex::desc()],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
+        // Create vertex buffer for a quad (will update vertices in prepare)
+        let vertices = [
+            QuadVertex { position: [0.0, 0.0], color: [0.0, 0.0, 0.0, 0.8] },
+            QuadVertex { position: [1.0, 0.0], color: [0.0, 0.0, 0.0, 0.8] },
+            QuadVertex { position: [1.0, 1.0], color: [0.0, 0.0, 0.0, 0.8] },
+            QuadVertex { position: [0.0, 1.0], color: [0.0, 0.0, 0.0, 0.8] },
+        ];
+        
+        let background_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Caption Background Vertex Buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let indices: [u16; 6] = [0, 1, 2, 2, 3, 0];
+        let background_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Caption Background Index Buffer"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
         Self {
             settings_buffer,
             font_system,
@@ -110,6 +233,11 @@ impl CaptionsLayer {
             current_italic: 0,
             current_font: 0,
             viewport,
+            background_pipeline,
+            background_vertex_buffer,
+            background_index_buffer,
+            current_background_bounds: None,
+            current_background_color: [0.0, 0.0, 0.0, 0.0],
         }
     }
 
@@ -292,34 +420,55 @@ impl CaptionsLayer {
                         // Update the viewport with explicit resolution
                         self.viewport.update(queue, Resolution { width, height });
 
-                        // Background color
-                        let bg_color = if settings.background_color[3] > 0.01 {
-                            // Create a new text area with background color
-                            Color::rgba(
-                                (settings.background_color[0] * 255.0) as u8,
-                                (settings.background_color[1] * 255.0) as u8,
-                                (settings.background_color[2] * 255.0) as u8,
-                                (settings.background_color[3] * 255.0) as u8,
-                            )
+                        // Store background info for rendering
+                        if settings.background_color[3] > 0.01 {
+                            self.current_background_bounds = Some(bounds);
+                            self.current_background_color = settings.background_color;
+
+                            // Calculate actual text bounds for background
+                            // We need to measure the actual text to get proper background size
+                            let line_count = text.lines().count() as f32;
+                            let text_height = font_size * line_count * 1.5; // Add some padding
+                            
+                            // Add padding around text
+                            let padding = font_size * 0.5;
+                            let bg_left = bounds.left as f32 - padding;
+                            let bg_right = bounds.right as f32 + padding;
+                            let bg_top = y_position - padding * 0.5;
+                            let bg_bottom = y_position + text_height + padding * 0.5;
+
+                            // Update vertex buffer with proper NDC coordinates
+                            let ndc_left = (bg_left / width as f32) * 2.0 - 1.0;
+                            let ndc_right = (bg_right / width as f32) * 2.0 - 1.0;
+                            let ndc_top = 1.0 - (bg_top / height as f32) * 2.0;
+                            let ndc_bottom = 1.0 - (bg_bottom / height as f32) * 2.0;
+
+                            let vertices = [
+                                QuadVertex { 
+                                    position: [ndc_left, ndc_top], 
+                                    color: settings.background_color 
+                                },
+                                QuadVertex { 
+                                    position: [ndc_right, ndc_top], 
+                                    color: settings.background_color 
+                                },
+                                QuadVertex { 
+                                    position: [ndc_right, ndc_bottom], 
+                                    color: settings.background_color 
+                                },
+                                QuadVertex { 
+                                    position: [ndc_left, ndc_bottom], 
+                                    color: settings.background_color 
+                                },
+                            ];
+                            
+                            queue.write_buffer(&self.background_vertex_buffer, 0, bytemuck::cast_slice(&vertices));
                         } else {
-                            Color::rgba(0, 0, 0, 0)
-                        };
+                            self.current_background_bounds = None;
+                        }
 
                         // Prepare text areas for rendering
                         let mut text_areas = Vec::new();
-
-                        // Add background if enabled
-                        if settings.background_color[3] > 0.01 {
-                            text_areas.push(TextArea {
-                                buffer: &self.text_buffer,
-                                left: bounds.left as f32, // Match the bounds left for positioning
-                                top: y_position,
-                                scale: 1.0,
-                                bounds,
-                                default_color: bg_color,
-                                custom_glyphs: &[],
-                            });
-                        }
 
                         // Add outline if enabled (by rendering the text multiple times with slight offsets in different positions)
                         if settings.outline == 1 {
@@ -393,6 +542,15 @@ impl CaptionsLayer {
 
     /// Render the current caption to the frame
     pub fn render<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) {
+        // First render the background if present
+        if self.current_background_bounds.is_some() && self.current_background_color[3] > 0.01 {
+            pass.set_pipeline(&self.background_pipeline);
+            pass.set_vertex_buffer(0, self.background_vertex_buffer.slice(..));
+            pass.set_index_buffer(self.background_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            pass.draw_indexed(0..6, 0, 0..1);
+        }
+
+        // Then render the text on top
         match self
             .text_renderer
             .render(&self.text_atlas, &self.viewport, pass)
