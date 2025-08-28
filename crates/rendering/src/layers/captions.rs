@@ -43,10 +43,10 @@ impl Default for CaptionSettings {
             color: [1.0, 1.0, 1.0, 1.0],            // white
             background_color: [0.0, 0.0, 0.0, 0.8], // 80% black
             position: 2,                            // bottom
-            outline: 1,                             // enabled
+            outline: 0,                             // disabled
             outline_color: [0.0, 0.0, 0.0, 1.0],    // black
             font: 0,                                // SansSerif
-            bold: 1,                                // enabled
+            bold: 0,                                // disabled
             italic: 0,                              // disabled
             _padding: [0.0, 0.0],
         }
@@ -106,7 +106,7 @@ impl CaptionsLayer {
             text_buffer,
             current_text: None,
             current_segment_time: 0.0,
-            current_bold: 1, // default from CaptionSettings::default()
+            current_bold: 0, // default from CaptionSettings::default()
             current_italic: 0,
             current_font: 0,
             viewport,
