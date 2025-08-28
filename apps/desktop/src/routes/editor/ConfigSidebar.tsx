@@ -13,7 +13,7 @@ import { createEventListenerMap } from "@solid-primitives/event-listener";
 import { createWritableMemo } from "@solid-primitives/memo";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { appDataDir, resolveResource } from "@tauri-apps/api/path";
-import { BaseDirectory, writeFile } from "@tauri-apps/plugin-fs";
+import { BaseDirectory, writeFile, exists, mkdir, readDir } from "@tauri-apps/plugin-fs";
 import { type as ostype } from "@tauri-apps/plugin-os";
 import { cx } from "cva";
 import {
@@ -636,26 +636,56 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
   const [backgroundTab, setBackgroundTab] =
     createSignal<keyof typeof BACKGROUND_THEMES>("macOS");
 
-  const [wallpapers] = createResource(async () => {
-    // Only load visible wallpapers initially
-    const visibleWallpaperPaths = WALLPAPER_NAMES.map(async (id) => {
+  const [wallpapers, { refetch: refetchWallpapers }] = createResource(async () => {
+    // Load bundled wallpapers
+    const bundledWallpaperPaths = WALLPAPER_NAMES.map(async (id) => {
       try {
         const path = await resolveResource(`assets/backgrounds/${id}.jpg`);
-        return { id, path };
+        return { id, path, isUserWallpaper: false };
       } catch (err) {
-        return { id, path: null };
+        return { id, path: null, isUserWallpaper: false };
       }
     });
 
-    // Load initial batch
-    const initialPaths = await Promise.all(visibleWallpaperPaths);
+    // Load user wallpapers from app data directory
+    const appDir = await appDataDir();
+    const userWallpapers: Array<{ id: string; path: string | null; isUserWallpaper: boolean }> = [];
+    
+    try {
+      // Read user wallpapers from the app data directory
+      // Look for files matching the pattern wallpaper-{theme}-{timestamp}.{ext}
+      const entries = await readDir(appDir);
+      const themes = ['macOS', 'dark', 'blue', 'purple', 'orange'];
+      
+      for (const entry of entries) {
+        if (entry.isFile && entry.name) {
+          // Check if it matches our wallpaper naming pattern
+          const match = entry.name.match(/^wallpaper-(macOS|dark|blue|purple|orange)-\d+\.(jpg|jpeg|png|webp)$/i);
+          if (match) {
+            const theme = match[1];
+            userWallpapers.push({
+              id: `${theme}/${entry.name.replace(/\.[^.]+$/, '')}`,
+              path: `${appDir}/${entry.name}`,
+              isUserWallpaper: true
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load user wallpapers:', err);
+    }
 
-    return initialPaths
+    // Combine bundled and user wallpapers
+    const bundledPaths = await Promise.all(bundledWallpaperPaths);
+    const allWallpapers = [...bundledPaths, ...userWallpapers];
+
+    return allWallpapers
       .filter((p) => p.path !== null)
-      .map(({ id, path }) => ({
-        id,
-        url: convertFileSrc(path!),
-        rawPath: path!,
+      .map((p) => ({
+        id: p.id,
+        url: convertFileSrc(p.path!),
+        rawPath: p.path!,  // Always use the actual path for rawPath
+        isUserWallpaper: p.isUserWallpaper
       }));
   });
 
@@ -753,6 +783,7 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
   );
 
   let fileInput!: HTMLInputElement;
+  let wallpaperFileInput!: HTMLInputElement;
 
   // Optimize the debounced set project function
   const debouncedSetProject = (wallpaperPath: string) => {
@@ -1015,15 +1046,27 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
             </KTabs>
             {/** End of Background Tabs */}
             <KRadioGroup
-              value={
-                project.background.source.type === "wallpaper"
-                  ? wallpapers()?.find((w) =>
-                      (
-                        project.background.source as { path?: string }
-                      ).path?.includes(w.id)
-                    )?.url ?? undefined
-                  : undefined
-              }
+              value={(() => {
+                if (project.background.source.type !== "wallpaper") return undefined;
+                
+                const sourcePath = (project.background.source as { path?: string }).path;
+                
+                const matchingWallpaper = wallpapers()?.find((w) => {
+                  if (!sourcePath) return false;
+                  
+                  // For bundled wallpapers, the sourcePath might be just the ID
+                  // For user wallpapers, sourcePath is the full path
+                  if (w.isUserWallpaper) {
+                    // User wallpapers: direct path comparison
+                    return sourcePath === w.rawPath;
+                  } else {
+                    // Bundled wallpapers: check if sourcePath is the ID or the full path
+                    return sourcePath === w.id || sourcePath === w.rawPath;
+                  }
+                });
+                
+                return matchingWallpaper?.url ?? undefined;
+              })()}
               onChange={(photoUrl) => {
                 try {
                   const wallpaper = wallpapers()?.find(
@@ -1031,8 +1074,7 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
                   );
                   if (!wallpaper) return;
 
-                  // Get the raw path without any URL prefixes
-
+                  // Always use rawPath which is the full file path
                   debouncedSetProject(wallpaper.rawPath);
                 } catch (err) {
                   toast.error("Failed to set wallpaper");
@@ -1051,7 +1093,29 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
                   </div>
                 }
               >
-                <For each={filteredWallpapers().slice(0, 21)}>
+                {/* Upload button as first item */}
+                <button
+                  type="button"
+                  onClick={() => wallpaperFileInput?.click()}
+                  class="relative aspect-square rounded-lg border-2 border-dashed border-gray-5 hover:border-gray-6 hover:bg-gray-2 transition-colors flex flex-col items-center justify-center gap-1 cursor-pointer"
+                  title="Upload wallpaper"
+                >
+                  <svg
+                    class="w-6 h-6 text-gray-11"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
+                  </svg>
+                  <span class="text-[10px] text-gray-11">Add</span>
+                </button>
+                <For each={filteredWallpapers().slice(0, 20)}>
                   {(photo) => (
                     <KRadioGroup.Item
                       value={photo.url!}
@@ -1072,7 +1136,7 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
                 <Collapsible class="col-span-7">
                   <Collapsible.Content class="animate-in slide-in-from-top-2 fade-in">
                     <div class="grid grid-cols-7 gap-2">
-                      <For each={filteredWallpapers()}>
+                      <For each={filteredWallpapers().slice(20)}>
                         {(photo) => (
                           <KRadioGroup.Item
                             value={photo.url!}
@@ -1095,6 +1159,87 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
                 </Collapsible>
               </Show>
             </KRadioGroup>
+            <input
+              type="file"
+              ref={wallpaperFileInput}
+              class="hidden"
+              accept="image/jpeg, image/jpg, image/png, image/webp"
+              onChange={async (e) => {
+                try {
+                  const file = e.currentTarget.files?.[0];
+                  if (!file) {
+                    return;
+                  }
+
+                  const validExtensions = ["jpg", "jpeg", "png", "webp"];
+                  const extension = file.name.split(".").pop()?.toLowerCase();
+                  
+                  if (!extension || !validExtensions.includes(extension)) {
+                    toast.error("Please select a JPG, PNG, or WebP image");
+                    return;
+                  }
+
+                  const currentTab = backgroundTab();
+                  
+                  // Get app directory for later use
+                  const appDir = await appDataDir();
+                  
+                  // Use the simple approach that was working
+                  const simpleFileName = `wallpaper-${currentTab}-${Date.now()}.${extension}`;
+                  
+                  const arrayBuffer = await file.arrayBuffer();
+                  const uint8Array = new Uint8Array(arrayBuffer);
+
+                  await writeFile(simpleFileName, uint8Array, {
+                    baseDir: BaseDirectory.AppData,
+                  });
+                  
+                  // Clear input safely before async operations
+                  const inputElement = e.currentTarget;
+                  if (inputElement) {
+                    inputElement.value = "";
+                  }
+                  
+                  // Force a proper refresh by awaiting the refetch
+                  await refetchWallpapers();
+                  
+                  // Add a small delay to ensure file system operations complete
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                  
+                  // Now get the updated wallpapers and find the new one
+                  const updatedWallpapers = wallpapers();
+                  
+                  // Look for the newly uploaded wallpaper
+                  const newWallpaper = updatedWallpapers?.find(w => 
+                    w.rawPath?.includes(simpleFileName)
+                  );
+                  
+                  if (newWallpaper) {
+                    // Set it as the selected wallpaper using rawPath
+                    setProject("background", "source", {
+                      type: "wallpaper",
+                      path: newWallpaper.rawPath,  // Use the rawPath which is the full path for user wallpapers
+                    });
+                  } else {
+                    // Fallback: use the full path we know
+                    const fullPath = `${appDir}/${simpleFileName}`;
+                    setProject("background", "source", {
+                      type: "wallpaper",
+                      path: fullPath,
+                    });
+                  }
+                  
+                  toast.success("Wallpaper uploaded successfully!");
+                } catch (err) {
+                  toast.error(`Failed to upload wallpaper: ${err.message || err}`);
+                }
+
+                // Clear the input safely
+                if (e.currentTarget) {
+                  e.currentTarget.value = "";
+                }
+              }}
+            />
           </KTabs.Content>
           <KTabs.Content value="image">
             <Show
