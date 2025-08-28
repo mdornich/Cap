@@ -498,9 +498,9 @@ impl Default for CaptionSettings {
             background_color: "#000000".to_string(),
             background_opacity: 80,
             position: "bottom".to_string(),
-            bold: true,
+            bold: false,
             italic: false,
-            outline: true,
+            outline: false,
             outline_color: "#000000".to_string(),
             export_with_subtitles: false,
         }
