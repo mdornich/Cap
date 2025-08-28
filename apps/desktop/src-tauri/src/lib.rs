@@ -520,17 +520,17 @@ async fn create_thumbnail(input: PathBuf, output: PathBuf, size: (u32, u32)) -> 
 #[tauri::command]
 #[specta::specta]
 async fn copy_file_to_path(app: AppHandle, src: String, dst: String) -> Result<(), String> {
-    println!("Attempting to copy file from {} to {}", src, dst);
 
     let is_screenshot = src.contains("screenshots/");
     let is_gif = src.ends_with(".gif") || dst.ends_with(".gif");
+    let is_srt = src.ends_with(".srt") || dst.ends_with(".srt");
 
     let src_path = std::path::Path::new(&src);
     if !src_path.exists() {
         return Err(format!("Source file {} does not exist", src));
     }
 
-    if !is_screenshot && !is_gif {
+    if !is_screenshot && !is_gif && !is_srt {
         if !is_valid_mp4(src_path) {
             let mut attempts = 0;
             while attempts < 10 {
@@ -580,18 +580,13 @@ async fn copy_file_to_path(app: AppHandle, src: String, dst: String) -> Result<(
                     continue;
                 }
 
-                if !is_screenshot && !is_gif && !is_valid_mp4(std::path::Path::new(&dst)) {
+                if !is_screenshot && !is_gif && !is_srt && !is_valid_mp4(std::path::Path::new(&dst)) {
                     last_error = Some("Destination file is not a valid MP4".to_string());
                     let _ = tokio::fs::remove_file(&dst).await;
                     attempts += 1;
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     continue;
                 }
-
-                println!(
-                    "Successfully copied {} bytes from {} to {}",
-                    bytes, src, dst
-                );
 
                 notifications::send_notification(
                     &app,
