@@ -265,6 +265,42 @@ export function ExportDialog() {
       setExportState({ type: "copying" });
 
       await commands.copyFileToPath(videoPath, savePath);
+      
+      // Export captions if requested
+      console.log('Caption export setting:', settings.captionExport);
+      console.log('Project path:', projectPath);
+      console.log('Video saved to:', savePath);
+      
+      if (settings.captionExport === "srt") {
+        try {
+          // Extract video ID from project path (the UUID part of the .cap filename)
+          const pathParts = projectPath.split('/');
+          const capFileName = pathParts[pathParts.length - 1];
+          const videoId = capFileName.replace('.cap', '');
+          console.log('Exporting SRT for video ID:', videoId);
+          
+          const srtPath = await commands.exportCaptionsSrt(videoId);
+          console.log('SRT created at:', srtPath);
+          
+          if (srtPath) {
+            // Parse the save path more carefully
+            // savePath might be like: /Users/username/Desktop/video.mp4
+            const pathMatch = savePath.match(/^(.+)\/([^\/]+)\.([^\.]+)$/);
+            if (pathMatch) {
+              const [, directory, filename, extension] = pathMatch;
+              const srtSavePath = `${directory}/${filename}.srt`;
+              
+              // Copy SRT file to same location as video
+              await commands.copyFileToPath(srtPath, srtSavePath);
+              toast.success(`SRT file saved as: ${filename}.srt`);
+            } else {
+              toast.error("SRT exported but couldn't copy to video location");
+            }
+          }
+        } catch (error) {
+          toast.error("Failed to export SRT captions");
+        }
+      }
 
       setExportState({ type: "done" });
     },
@@ -577,6 +613,11 @@ export function ExportDialog() {
                     )}
                   </For>
                 </div>
+                {settings.captionExport === "srt" && (
+                  <p class="text-xs text-gray-11">
+                    SRT file will be saved alongside your video with the same filename
+                  </p>
+                )}
               </div>
             </div>
             {/* Frame rate */}

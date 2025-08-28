@@ -199,6 +199,26 @@ export function CaptionsTab() {
     }
   });
 
+  // Helper function to save captions to disk
+  const saveCaptionsToDisk = async () => {
+    if (!project?.captions || !editorInstance?.path) return;
+    
+    try {
+      // Extract video ID from project path
+      const pathParts = editorInstance.path.split('/');
+      const capFileName = pathParts[pathParts.length - 1];
+      const videoId = capFileName.replace('.cap', '');
+      
+      // Save captions using the existing backend function
+      await commands.saveCaptions(videoId, {
+        segments: project.captions.segments || [],
+        settings: project.captions.settings || null
+      });
+    } catch (e) {
+      // Silently handle error - captions will still work from memory
+    }
+  };
+
   // Helper function to update caption settings
   const updateCaptionSetting = (key: keyof CaptionSettings, value: any) => {
     if (!project?.captions) return;
@@ -224,6 +244,9 @@ export function CaptionsTab() {
     captionsStore.updateSettings({
       [key]: value,
     });
+    
+    // Save to disk
+    saveCaptionsToDisk();
   };
 
   // Restore scroll position after any content changes
@@ -475,6 +498,10 @@ export function CaptionsTab() {
         // Update global captions store with the new segments
         captionsStore.updateSegments(result.segments);
         updateCaptionSetting("enabled", true);
+        
+        // Save captions to disk after transcription
+        await saveCaptionsToDisk();
+        
         toast.success("Captions generated successfully!");
       } else {
         toast.error(
@@ -516,6 +543,9 @@ export function CaptionsTab() {
       "segments",
       project.captions.segments.filter((segment) => segment.id !== id)
     );
+    
+    // Save to disk after deletion
+    saveCaptionsToDisk();
   };
 
   const updateSegment = (
@@ -531,6 +561,9 @@ export function CaptionsTab() {
         segment.id === id ? { ...segment, ...updates } : segment
       )
     );
+    
+    // Save to disk after update
+    saveCaptionsToDisk();
   };
 
   const addSegment = (time: number) => {
@@ -546,6 +579,9 @@ export function CaptionsTab() {
         text: "New caption",
       },
     ]);
+    
+    // Save to disk after adding
+    saveCaptionsToDisk();
   };
 
   return (

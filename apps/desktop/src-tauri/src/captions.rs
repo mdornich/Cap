@@ -1266,15 +1266,29 @@ pub async fn export_captions_srt(
     tracing::info!("Converting captions to SRT format");
     let srt_content = captions_to_srt(&captions_with_settings);
 
+    // Log a preview of the SRT content (first 500 chars)
+    let preview_len = srt_content.len().min(500);
+    tracing::info!("SRT Preview (first {} chars):\n{}", preview_len, &srt_content[..preview_len]);
+
     // Get path for SRT file
     let captions_dir = app_captions_dir(&app, &video_id)?;
     let srt_path = captions_dir.join("captions.srt");
     tracing::info!("Will write SRT file to: {:?}", srt_path);
 
+    // Create directory if it doesn't exist
+    if let Err(e) = std::fs::create_dir_all(&captions_dir) {
+        tracing::error!("Failed to create captions directory: {}", e);
+        return Err(format!("Failed to create captions directory: {}", e));
+    }
+
     // Write SRT file
-    match std::fs::write(&srt_path, srt_content) {
+    match std::fs::write(&srt_path, &srt_content) {
         Ok(_) => {
             tracing::info!("Successfully wrote SRT file to: {:?}", srt_path);
+            tracing::info!("SRT file size: {} bytes", srt_content.len());
+            
+            // Don't open Finder here since we'll copy the file to the user's chosen location
+            
             Ok(Some(srt_path))
         }
         Err(e) => {
