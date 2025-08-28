@@ -5,17 +5,16 @@ This document tracks potential future features and enhancements for Cap/Klip. Fe
 ## 🎯 What's Next - Priority Queue
 
 ### Immediate Priorities (This Week)
-1. **Video Transcription** *(Already partially complete)*
+1. **Video Transcription** ✅ **COMPLETE**
    - ✅ Basic transcription working with microphone audio
-   - ⏳ Need to handle mixed audio sources better
-   - ⏳ Add language selection UI
-   - ⏳ Improve transcription accuracy with better models
+   - ✅ Mixed audio sources handled correctly
+   - ✅ Model selection already available (Whisper models)
+   - Note: Language translation moved to viewer features (let players handle translation of SRT files)
 
 2. **Closed Captioning Display**
-   - Build on completed transcription work
-   - Implement WebVTT/SRT export
-   - Add caption editing interface
-   - Burn-in option for exported videos
+   - ✅ WebVTT/SRT export (completed 2025-08-28)
+   - ⏳ Add caption editing interface
+   - ⏳ Burn-in option for exported videos
 
 3. **Collaborative Feedback on Shareable Links**
    - Timestamp-based commenting
@@ -26,7 +25,6 @@ This document tracks potential future features and enhancements for Cap/Klip. Fe
 1. **Filler Word Removal** - Clean up recordings automatically
 2. **Silence Removal** - Make videos more concise
 3. **Auto-generate Bug Reports** - Jira/Linear integration
-4. **Multi-language Transcription** - Expand beyond English
 
 ### Backlog (1-2 Months)
 1. **Cloudflare Stream Integration** - Alternative storage provider
@@ -120,23 +118,27 @@ Enable commenting directly on videos.
 - Moderation tools
 - Notification system
 
-### Transcriptions in 50+ Languages
-**Priority:** High | **Complexity:** High (2 weeks)
+### Multi-Language Caption Translation (Viewer-Side)
+**Priority:** Medium | **Complexity:** Low (viewer platform dependent)
 **Requested by:** @mdornich | **Date:** 2025-01-23
+**Updated:** 2025-08-28
 
-Multi-language transcription support for global accessibility.
+Enable viewers to translate SRT captions to their preferred language using video player capabilities.
 
 **Benefits:**
-- Global reach
-- Better accessibility
-- Language learning support
-- International collaboration
+- Global reach without pre-generating multiple languages
+- Leverage existing player translation features (YouTube, Vimeo, etc.)
+- More efficient than transcribing in multiple languages
+- Viewers get real-time translation in their preferred language
+- No additional storage for multiple caption files
 
 **Technical Requirements:**
-- Multi-language speech recognition
-- Language detection
-- Translation capabilities
-- Character encoding support
+- Ensure SRT files are properly formatted for player compatibility
+- Metadata to indicate source language of captions
+- Documentation on which platforms support auto-translation
+- Consider providing translation API integration for custom player
+
+**Note:** Most modern video platforms can automatically translate SRT files. This is more efficient than pre-generating multiple language versions during transcription.
 
 ### Watch Later Functionality
 **Priority:** Low | **Complexity:** Low (2 days)
