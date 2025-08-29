@@ -169,6 +169,74 @@ Always check if files exist before operations:
 - Verify SRT was created before copying
 - Confirm video export succeeded before SRT export
 
+## Implemented Solutions
+
+### 1. Decoupled Caption Export System (2025-08-28)
+Successfully implemented Option 1 on first attempt - decoupling caption generation from burn-in:
+
+**New Export Options:**
+- **"None"**: No captions at all
+- **"Burn In"**: Captions permanently embedded in video
+- **"SRT File"**: Export SRT only (clean video)
+- **"Both"**: Embedded captions + separate SRT file
+
+**Implementation Details:**
+1. Added `burn_captions` field to `Mp4ExportSettings`
+2. Modified `ExportDialog` to pass burn preference
+3. Updated rendering pipeline to respect export preference over project settings
+4. SRT export works independently of burn-in setting
+
+**Key Success:** The implementation worked correctly on the first attempt by properly analyzing the code flow and understanding that the project config could be modified at export time without affecting the saved project state.
+
+### 2. Black Screen Fix for Caption Toggles (2025-08-29)
+Fixed the issue where toggling caption display settings caused a black screen due to render pipeline restarts:
+
+**Problem:** Every caption setting change triggered `setProjectConfig`, which sent the config through a watch channel to the Rust backend, causing the entire rendering pipeline to restart and show a black screen temporarily.
+
+**Solution:** Created a dual-command system to handle caption updates intelligently:
+1. Added new `update_caption_settings` Rust command that saves to disk without triggering render restart
+2. Modified the project config effect in `context.ts` to detect caption-style-only changes
+3. Routes style changes through the new command, preventing unnecessary render restarts
+
+**Implementation Details:**
+- New Rust command: `update_caption_settings` - saves config to disk only
+- Smart change detection: Compares previous and current project states
+- Differentiates between:
+  - Style changes (font, color, size, etc.) → Use new command
+  - Structural changes (segments, enabled state) → Use regular update
+- Fallback mechanism if new command fails
+
+**Files Modified:**
+- `apps/desktop/src-tauri/src/lib.rs` - Added new command
+- `apps/desktop/src/routes/editor/context.ts` - Smart change detection
+- `apps/desktop/src/utils/tauri.ts` - Auto-generated TypeScript bindings
+
+### 3. Black Screen Fix for Toggle Components in CaptionsTab (2025-08-29)
+Fixed a persistent issue where using Toggle components specifically in CaptionsTab caused the video preview to go black:
+
+**Problem:** The Kobalte Toggle/Switch components, when used in the CaptionsTab, would cause the rendering pipeline to get stuck, showing a black screen. The WebSocket connection remained active but frames stopped rendering. This issue was specific to CaptionsTab - toggles worked fine in other configuration tabs.
+
+**Root Cause:** The Kobalte Toggle component interaction in CaptionsTab somehow caused the GPU rendering pipeline to pause or get stuck, though the exact underlying cause remains unclear. The fact that manually reloading the frame restored the display indicated the pipeline was recoverable but stuck.
+
+**Solution:** Implemented a custom CaptionToggle component that forces a frame re-render after state changes:
+1. Created a custom toggle component that mimics the Toggle UI but uses a plain button element
+2. Added a 100ms delayed frame re-render after each toggle click
+3. The re-render is triggered via `renderFrameEvent.emit()` to restart the rendering pipeline
+
+**Implementation Details:**
+- Custom `CaptionToggle` component with full accessibility support (role="switch", aria-checked)
+- Visual styling matches original Toggle component (animated thumb, color transitions)
+- Forces frame re-render by emitting render event with current playback frame
+- Applied to all 5 toggle instances in CaptionsTab:
+  - Enable Captions toggle
+  - Bold, Italic, and Outline text style toggles
+  - Export with Subtitles toggle
+
+**Files Modified:**
+- `apps/desktop/src/routes/editor/CaptionsTab.tsx` - Added custom CaptionToggle component and replaced all Toggle instances
+
+**Key Learning:** When UI component libraries cause rendering issues in specific contexts, a custom implementation with explicit control over the rendering pipeline can provide a reliable workaround.
+
 ## Future Improvements
 
 ### Recommended Enhancements

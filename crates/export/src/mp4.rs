@@ -39,6 +39,8 @@ pub struct Mp4ExportSettings {
     pub fps: u32,
     pub resolution_base: XY<u32>,
     pub compression: ExportCompression,
+    #[serde(default)]
+    pub burn_captions: Option<bool>,
 }
 
 impl Mp4ExportSettings {
@@ -209,9 +211,22 @@ impl Mp4ExportSettings {
                 .and_then(|v| v.map_err(|e| e.to_string()))
         });
 
+        // Modify project config based on burn_captions preference
+        let mut project_config = base.project_config.clone();
+        if let Some(burn_captions) = self.burn_captions {
+            // If burn_captions is explicitly set, override the caption enabled setting
+            if !burn_captions {
+                // User wants SRT only, disable caption burn-in
+                if let Some(ref mut captions) = project_config.captions {
+                    captions.settings.enabled = false;
+                }
+            }
+            // If burn_captions is true, keep the existing enabled setting
+        }
+        
         let render_video_task = cap_rendering::render_video_to_channel(
             &base.render_constants,
-            &base.project_config,
+            &project_config,
             tx_image_data,
             &base.recording_meta,
             meta,

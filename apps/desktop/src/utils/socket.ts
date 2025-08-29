@@ -6,6 +6,9 @@ export function createImageDataWS(
   onmessage: (data: { width: number; data: ImageData }) => void
 ): [Omit<WebSocket, "onmessage">, () => boolean] {
   const [isConnected, setIsConnected] = createSignal(false);
+  let reconnectAttempts = 0;
+  const maxReconnectAttempts = 5;
+  
   const ws = createWS(url);
 
   ws.addEventListener("open", () => {
@@ -13,13 +16,20 @@ export function createImageDataWS(
     setIsConnected(true);
   });
 
-  ws.addEventListener("close", () => {
-    console.log("WebSocket disconnected");
+  ws.addEventListener("close", (event) => {
+    console.error("WebSocket disconnected!", {
+      code: event.code,
+      reason: event.reason,
+      wasClean: event.wasClean,
+      timestamp: new Date().toISOString()
+    });
     setIsConnected(false);
   });
 
   ws.addEventListener("error", (error) => {
-    console.error("WebSocket error:", error);
+    console.error("WebSocket error:", error, {
+      timestamp: new Date().toISOString()
+    });
     setIsConnected(false);
   });
 

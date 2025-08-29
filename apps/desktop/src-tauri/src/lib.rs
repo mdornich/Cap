@@ -947,6 +947,7 @@ async fn set_project_config(
     Ok(())
 }
 
+
 #[tauri::command]
 #[specta::specta]
 async fn list_audio_devices() -> Result<Vec<String>, ()> {

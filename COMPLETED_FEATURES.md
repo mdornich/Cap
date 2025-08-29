@@ -2,6 +2,31 @@
 
 This document tracks successfully implemented features for Cap/Klip, organized by completion date.
 
+## 2025-08-29
+
+### ✅ Black Screen Fix for Caption Toggle Components
+**Requested by:** @mitchdornich | **Completed:** 2025-08-29
+**Implementation Time:** 3 hours (after multiple debugging sessions)
+
+Successfully fixed a persistent issue where toggling caption settings in CaptionsTab caused the video preview to go black.
+
+**Problem Identified:**
+- The Kobalte Toggle/Switch components caused the GPU rendering pipeline to get stuck when used in CaptionsTab
+- Issue was specific to CaptionsTab - same toggles worked fine in other configuration tabs
+- WebSocket remained connected but frames stopped rendering
+
+**Solution Implemented:**
+- Created custom `CaptionToggle` component that forces frame re-render after state changes
+- Maintains full accessibility support and visual parity with original Toggle
+- Applied to all 5 toggle instances in CaptionsTab
+
+**Technical Details:**
+- Custom component triggers `renderFrameEvent.emit()` 100ms after toggle click
+- This forces the rendering pipeline to restart and resume frame display
+- Workaround avoids the underlying Kobalte component issue
+
+---
+
 ## 2025-08-26
 
 ### ✅ Quick Caption Toggle & Transcription Fixes
