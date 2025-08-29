@@ -237,6 +237,15 @@ export function CaptionsTab() {
     // Also update the project for persistence
     setProject("captions", "settings", key, value);
     
+    // Force frame re-render to show the changes immediately
+    setTimeout(() => {
+      events.renderFrameEvent.emit({
+        frame_number: Math.floor(editorState.playbackTime * FPS),
+        fps: FPS,
+        resolution_base: OUTPUT_SIZE,
+      });
+    }, 100);
+    
     // Save to disk with debounce
     debouncedSaveToDisk();
   };

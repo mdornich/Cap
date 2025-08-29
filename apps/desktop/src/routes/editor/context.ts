@@ -235,7 +235,8 @@ export const [EditorContextProvider, useEditorContext] = createContextProvider(
         selection: null as
           | null
           | { type: "zoom"; index: number }
-          | { type: "clip"; index: number },
+          | { type: "clip"; index: number }
+          | { type: "caption"; id: string },
         transform: {
           // visible seconds
           zoom: zoomOutLimit(),

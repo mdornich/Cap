@@ -58,7 +58,7 @@
           "y": 140
         }
       },
-      "frameworks": [],
+      "frameworks": ["../../../target/native-deps/Spacedrive.framework"],
       "signingIdentity": "Developer ID Application: mitch dornich (ZPTY96LTPB)",
       "entitlements": "./entitlements.plist",
       "hardenedRuntime": false,

@@ -579,7 +579,7 @@ export function ConfigSidebar() {
           <CaptionsTab />
         </KTabs.Content>
       </div>
-      <Show when={editorState.timeline.selection}>
+      <Show when={editorState.timeline.selection && editorState.timeline.selection.type !== "caption"}>
         {(selection) => (
           <div class="absolute inset-0 p-[0.75rem] text-[0.875rem] space-y-4 bg-gray-1 dark:bg-gray-2 z-50 animate-in slide-in-from-bottom-2 fade-in">
             <Suspense>
