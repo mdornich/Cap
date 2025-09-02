@@ -122,6 +122,9 @@ async getRecordingMeta(path: string, fileType: string) : Promise<RecordingMetaWi
 async saveFileDialog(fileName: string, fileType: string) : Promise<string | null> {
     return await TAURI_INVOKE("save_file_dialog", { fileName, fileType });
 },
+async deleteWallpaper(filePath: string) : Promise<null> {
+    return await TAURI_INVOKE("delete_wallpaper", { filePath });
+},
 async listRecordings() : Promise<([string, RecordingMetaWithType])[]> {
     return await TAURI_INVOKE("list_recordings");
 },

@@ -79,21 +79,24 @@ pub fn init(app: &AppHandle) {
                 let store = state.lock().unwrap();
 
                 for (action, hotkey) in &store.hotkeys {
-                    // Create a new shortcut for comparison to avoid ID mismatch
+                    // Compare shortcuts by converting to debug strings
+                    // This is more reliable than the previous string splitting approach
                     let test_shortcut = hotkey.to_shortcut();
-                    // Convert both to debug strings for comparison since we can't access internal fields
+                    
+                    // Format both shortcuts as strings for comparison
                     let test_str = format!("{:?}", test_shortcut);
                     let received_str = format!("{:?}", shortcut);
                     
-                    // Extract just the key and modifiers part, ignoring the ID
-                    if let (Some(test_parts), Some(received_parts)) = (
-                        test_str.split(", id:").next(),
-                        received_str.split(", id:").next()
-                    ) {
-                        println!("Comparing: {} == {}", test_parts, received_parts);
-                        if test_parts == received_parts {
+                    // Extract the key and modifiers part, ignoring the ID which is unique per instance
+                    // The format is like: Shortcut { modifiers: META | SHIFT, key: KeyP, id: ... }
+                    let test_parts: Vec<&str> = test_str.split(", id:").collect();
+                    let received_parts: Vec<&str> = received_str.split(", id:").collect();
+                    
+                    if !test_parts.is_empty() && !received_parts.is_empty() {
+                        if test_parts[0] == received_parts[0] {
                             println!("Triggering hotkey action: {:?}", action);
                             tokio::spawn(handle_hotkey(app.clone(), *action));
+                            break; // Only trigger one action per hotkey press
                         }
                     }
                 }
@@ -181,3 +184,7 @@ pub fn set_hotkey(app: AppHandle, action: HotkeyAction, hotkey: Option<Hotkey>) 
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "hotkeys_test.rs"]
+mod hotkeys_test;

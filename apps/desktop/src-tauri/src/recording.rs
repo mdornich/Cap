@@ -5,7 +5,7 @@ use chrono::Local;
 use crate::{
     audio::AppSounds,
     auth::AuthStore,
-    create_screenshot,
+    screenshots::create_screenshot_from_video,
     general_settings::{
         GeneralSettingsStore, MainWindowRecordingStartBehaviour, PostStudioRecordingBehaviour,
     },
@@ -665,7 +665,7 @@ async fn handle_recording_finish(
     };
 
     let display_screenshot = screenshots_dir.join("display.jpg");
-    let screenshot_task = tokio::spawn(create_screenshot(
+    let screenshot_task = tokio::spawn(create_screenshot_from_video(
         display_output_path,
         display_screenshot.clone(),
         None,

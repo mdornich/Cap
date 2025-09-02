@@ -101,7 +101,7 @@ function createCaptionsStore() {
             segments: captionsData.segments,
             settings: captionsData.settings || {
               enabled: true,
-              font: "Arial",
+              font: "System Sans-Serif",
               size: 24,
               color: "#FFFFFF",
               backgroundColor: "#000000",

@@ -138,7 +138,7 @@ impl DeepLinkAction {
                 crate::open_project_from_path(&project_path.into(), app.clone())
             }
             DeepLinkAction::OpenSettings { page } => {
-                crate::show_window(app.clone(), ShowCapWindow::Settings { page }).await
+                crate::system::show_window(app.clone(), ShowCapWindow::Settings { page }).await
             }
         }
     }

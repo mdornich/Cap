@@ -97,8 +97,9 @@ export const FORMAT_OPTIONS = [
 
 export const CAPTION_EXPORT_OPTIONS = [
   { label: "None", value: "none" },
-  { label: "SRT", value: "srt" },
-  { label: "TXT", value: "txt" },
+  { label: "Burn In", value: "burn" },
+  { label: "SRT File", value: "srt" },
+  { label: "Both", value: "both" },
 ] as const;
 
 type ExportToOption = (typeof EXPORT_TO_OPTIONS)[number]["value"];
@@ -109,7 +110,7 @@ interface Settings {
   exportTo: ExportToOption;
   resolution: { label: string; value: string; width: number; height: number };
   compression: ExportCompression;
-  captionExport: "none" | "srt" | "txt";
+  captionExport: "none" | "burn" | "srt" | "both";
 }
 export function ExportDialog() {
   const {
@@ -137,15 +138,19 @@ export function ExportDialog() {
   );
 
   if (!["Mp4", "Gif"].includes(settings.format)) setSettings("format", "Mp4");
-  if (!["none", "srt", "txt"].includes(settings.captionExport)) setSettings("captionExport", "none");
+  if (!["none", "burn", "srt", "both"].includes(settings.captionExport)) setSettings("captionExport", "none");
 
   const exportWithSettings = async (onProgress: (progress: FramesRendered) => void) => {
+    // Determine if captions should be burned in
+    const burnCaptions = settings.captionExport === "burn" || settings.captionExport === "both";
+    
     // Export video first
     return exportVideo(
       projectPath,
       {
         format: settings.format as ExportFormat,
         fps: settings.fps,
+        burn_captions: burnCaptions,
         resolution_base: {
           x: settings.resolution.width,
           y: settings.resolution.height,
@@ -271,7 +276,7 @@ export function ExportDialog() {
       console.log('Project path:', projectPath);
       console.log('Video saved to:', savePath);
       
-      if (settings.captionExport === "srt") {
+      if (settings.captionExport === "srt" || settings.captionExport === "both") {
         try {
           // Extract video ID from project path (the UUID part of the .cap filename)
           const pathParts = projectPath.split('/');
@@ -615,7 +620,17 @@ export function ExportDialog() {
                 </div>
                 {settings.captionExport === "srt" && (
                   <p class="text-xs text-gray-11">
-                    SRT file will be saved alongside your video with the same filename
+                    SRT file only - captions won't be embedded in video
+                  </p>
+                )}
+                {settings.captionExport === "burn" && (
+                  <p class="text-xs text-gray-11">
+                    Captions will be permanently embedded in the video
+                  </p>
+                )}
+                {settings.captionExport === "both" && (
+                  <p class="text-xs text-gray-11">
+                    Captions embedded in video + separate SRT file
                   </p>
                 )}
               </div>

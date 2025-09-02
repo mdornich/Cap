@@ -10,6 +10,7 @@ import "./styles.css";
 import { useEditorContext } from "../context";
 import { formatTime } from "../utils";
 import { ClipTrack } from "./ClipTrack";
+import { CaptionTrack } from "./CaptionTrack";
 import { TimelineContextProvider, useTimelineContext } from "./context";
 import { ZoomSegmentDragState, ZoomTrack } from "./ZoomTrack";
 
@@ -97,10 +98,36 @@ export function Timeline() {
         projectActions.deleteZoomSegment(selection.index);
       else if (selection.type === "clip")
         projectActions.deleteClipSegment(selection.index);
+      else if (selection.type === "caption" && project?.captions?.segments) {
+        // Delete selected caption
+        const segments = project.captions.segments.filter(s => s.id !== selection.id);
+        setProject("captions", "segments", segments);
+        setEditorState("timeline", "selection", null);
+      }
     } else if (e.code === "KeyC" && hasNoModifiers) {
       if (!editorState.previewTime) return;
 
       projectActions.splitClipSegment(editorState.previewTime);
+    } else if (e.code === "KeyN" && hasNoModifiers) {
+      // Add new caption at current playback time
+      if (!project?.captions) return;
+      
+      const time = editorState.playbackTime;
+      const id = `caption-${Date.now()}`;
+      const newSegment = {
+        id,
+        start: time,
+        end: time + 2,
+        text: "New caption"
+      };
+      
+      const segments = [...(project.captions.segments || []), newSegment];
+      segments.sort((a, b) => a.start - b.start);
+      
+      batch(() => {
+        setProject("captions", "segments", segments);
+        setEditorState("timeline", "selection", { type: "caption", id });
+      });
     }
   });
 
@@ -229,6 +256,7 @@ export function Timeline() {
           }}
           handleUpdatePlayhead={handleUpdatePlayhead}
         />
+        <CaptionTrack />
       </div>
     </TimelineContextProvider>
   );
