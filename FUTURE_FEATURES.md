@@ -924,9 +924,9 @@ When adding new feature ideas:
 
 | Feature | Priority | Status | Notes |
 |---------|----------|--------|-------|
-| Cutting during playback | High | ✅ Applied | Working in test branch |
-| Editor shortcuts | High | 🔄 In Progress | Hook created, needs integration |
-| Playback fixes | High | ⏳ Pending | | 
+| Cutting during playback | High | ✅ Completed | Integrated and tested |
+| Editor shortcuts | High | ✅ Completed | Space, S, Mod+/- working |
+| Playback fixes | High | ✅ Completed | Seek while playing fixed | 
 | New recording flow | High | ⏳ Pending | Needs careful adaptation |
 | Scene segments | Medium | ⏳ Pending | Test with captions |
 | Camera preview | Medium | ⏳ Pending | |
