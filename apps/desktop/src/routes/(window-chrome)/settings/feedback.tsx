@@ -29,7 +29,7 @@ export default function FeedbackTab() {
           <div class="py-2 mb-4">
             <h2 class="text-gray-12 text-lg font-medium">Send Feedback</h2>
             <p class="text-gray-11 text-sm">
-              Help us improve Cap by submitting feedback or reporting bugs.
+              Help us improve Klip by submitting feedback or reporting bugs.
               We'll get right on it.
             </p>
           </div>
@@ -45,7 +45,7 @@ export default function FeedbackTab() {
                 <textarea
                   value={feedback()}
                   onInput={(e) => setFeedback(e.currentTarget.value)}
-                  placeholder="Tell us what you think about Cap..."
+                  placeholder="Tell us what you think about Klip..."
                   required
                   minLength={10}
                   class="p-2 w-full h-32 bg-gray-2 rounded-md border transition-shadow duration-200 resize-none placeholder:text-zinc-400 border-gray-6 text-primary focus:outline-none focus:ring-2 focus:ring-blue-9"

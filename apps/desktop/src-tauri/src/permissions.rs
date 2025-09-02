@@ -55,19 +55,45 @@ pub fn open_permission_settings(permission: OSPermission) {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn request_permission(permission: OSPermission) {
+pub async fn request_permission(permission: OSPermission) -> bool {
     #[cfg(target_os = "macos")]
     {
         use cap_media::platform::AVMediaType;
+        use std::time::Duration;
+        use tokio::time::sleep;
 
         match permission {
             OSPermission::ScreenRecording => {
                 scap::request_permission();
+                // Wait a bit for the permission to be processed
+                sleep(Duration::from_millis(500)).await;
+                // Check if permission was granted
+                scap::has_permission() || check_screen_recording_permission_via_window_list()
             }
-            OSPermission::Camera => request_av_permission(AVMediaType::Video),
-            OSPermission::Microphone => request_av_permission(AVMediaType::Audio),
-            OSPermission::Accessibility => request_accessibility_permission(),
+            OSPermission::Camera => {
+                request_av_permission(AVMediaType::Video);
+                // Wait for permission dialog to be processed
+                sleep(Duration::from_millis(500)).await;
+                matches!(check_av_permission(AVMediaType::Video), OSPermissionStatus::Granted)
+            },
+            OSPermission::Microphone => {
+                request_av_permission(AVMediaType::Audio);
+                // Wait for permission dialog to be processed
+                sleep(Duration::from_millis(500)).await;
+                matches!(check_av_permission(AVMediaType::Audio), OSPermissionStatus::Granted)
+            },
+            OSPermission::Accessibility => {
+                request_accessibility_permission();
+                // Wait a bit for the permission to be processed
+                sleep(Duration::from_millis(500)).await;
+                matches!(check_accessibility_permission(), OSPermissionStatus::Granted)
+            },
         }
+    }
+    
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
     }
 }
 
@@ -118,7 +144,31 @@ pub struct OSPermissionsCheck {
 
 impl OSPermissionsCheck {
     pub fn necessary_granted(&self) -> bool {
-        self.screen_recording.permitted() && self.accessibility.permitted()
+        // Only screen recording is truly necessary
+        // Accessibility is optional (only needed for window focusing)
+        self.screen_recording.permitted()
+    }
+    
+    pub fn all_granted(&self) -> bool {
+        self.screen_recording.permitted() 
+            && self.accessibility.permitted()
+            && self.microphone.permitted()
+            && self.camera.permitted()
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn check_av_permission(media_type: cap_media::platform::AVMediaType) -> OSPermissionStatus {
+    use cap_media::platform::AVAuthorizationStatus;
+    use objc::*;
+
+    let cls = objc::class!(AVCaptureDevice);
+    let status: AVAuthorizationStatus =
+        unsafe { msg_send![cls, authorizationStatusForMediaType:media_type.into_ns_str()] };
+    match status {
+        AVAuthorizationStatus::NotDetermined => OSPermissionStatus::Empty,
+        AVAuthorizationStatus::Authorized => OSPermissionStatus::Granted,
+        _ => OSPermissionStatus::Denied,
     }
 }
 
@@ -129,23 +179,17 @@ pub fn do_permissions_check(initial_check: bool) -> OSPermissionsCheck {
     {
         use cap_media::platform::AVMediaType;
 
-        fn check_av_permission(media_type: AVMediaType) -> OSPermissionStatus {
-            use cap_media::platform::AVAuthorizationStatus;
-            use objc::*;
-
-            let cls = objc::class!(AVCaptureDevice);
-            let status: AVAuthorizationStatus =
-                unsafe { msg_send![cls, authorizationStatusForMediaType:media_type.into_ns_str()] };
-            match status {
-                AVAuthorizationStatus::NotDetermined => OSPermissionStatus::Empty,
-                AVAuthorizationStatus::Authorized => OSPermissionStatus::Granted,
-                _ => OSPermissionStatus::Denied,
-            }
-        }
-
         OSPermissionsCheck {
             screen_recording: {
-                let result = scap::has_permission();
+                // First try scap
+                let mut result = scap::has_permission();
+                
+                // If scap says no, double-check using CGWindowListCopyWindowInfo
+                // This works because it returns nil if we don't have permission
+                if !result {
+                    result = check_screen_recording_permission_via_window_list();
+                }
+                
                 match (result, initial_check) {
                     (true, _) => OSPermissionStatus::Granted,
                     (false, true) => OSPermissionStatus::Empty,
@@ -169,12 +213,59 @@ pub fn do_permissions_check(initial_check: bool) -> OSPermissionsCheck {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn check_screen_recording_permission_via_window_list() -> bool {
+    use core_foundation::array::CFArray;
+    use core_foundation::base::{CFType, TCFType};
+    use core_foundation::dictionary::CFDictionary;
+    use core_foundation::number::CFNumber;
+    use core_foundation::string::CFString;
+    
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGWindowListCopyWindowInfo(option: u32, relativeToWindow: u32) -> *const core_foundation::array::__CFArray;
+    }
+    
+    unsafe {
+        // kCGWindowListOptionAll = 0
+        // kCGWindowListOptionOnScreenOnly = 1 << 0
+        // kCGWindowListExcludeDesktopElements = 1 << 4
+        // kCGNullWindowID = 0
+        
+        // Try with minimal options first (more reliable in production)
+        let window_list_ptr = CGWindowListCopyWindowInfo(0, 0);
+        
+        if window_list_ptr.is_null() {
+            // If we get null with minimal options, we definitely don't have permission
+            return false;
+        }
+        
+        // We got a window list, so we have permission
+        let window_list = CFArray::<CFDictionary>::wrap_under_create_rule(window_list_ptr);
+        
+        // In production, even with permission, the list might be empty initially
+        // So we just check that we got a non-null list
+        true
+    }
+}
+
 pub fn check_accessibility_permission() -> OSPermissionStatus {
     #[cfg(target_os = "macos")]
     {
-        if unsafe { AXIsProcessTrusted() } {
+        let is_trusted = unsafe { AXIsProcessTrusted() };
+        eprintln!("[Accessibility] AXIsProcessTrusted returned: {}", is_trusted);
+        
+        // In production, we might need to prompt the user
+        if is_trusted {
             OSPermissionStatus::Granted
         } else {
+            // Check if we're running in a production build
+            #[cfg(not(debug_assertions))]
+            {
+                eprintln!("[Accessibility] Production build detected, prompting for permission");
+                // Try to trigger the prompt
+                request_accessibility_permission();
+            }
             OSPermissionStatus::Denied
         }
     }
@@ -189,8 +280,10 @@ pub fn request_accessibility_permission() {
     #[cfg(target_os = "macos")]
     {
         use core_foundation::base::TCFType;
-        use core_foundation::dictionary::CFDictionary; // Import CFDictionaryRef
+        use core_foundation::dictionary::CFDictionary;
         use core_foundation::string::CFString;
+
+        eprintln!("[Accessibility] Requesting accessibility permission...");
 
         let prompt_key = CFString::new("AXTrustedCheckOptionPrompt");
         let prompt_value = core_foundation::boolean::CFBoolean::true_value();
@@ -198,8 +291,17 @@ pub fn request_accessibility_permission() {
         let options =
             CFDictionary::from_CFType_pairs(&[(prompt_key.as_CFType(), prompt_value.as_CFType())]);
 
-        unsafe {
-            AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef());
+        let result = unsafe {
+            AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef())
+        };
+        
+        eprintln!("[Accessibility] AXIsProcessTrustedWithOptions returned: {}", result);
+        
+        if !result {
+            eprintln!("[Accessibility] Permission not granted. User needs to:");
+            eprintln!("  1. Open System Settings > Privacy & Security > Accessibility");
+            eprintln!("  2. Add and enable Klip.app");
+            eprintln!("  3. Restart Klip after granting permission");
         }
     }
 }

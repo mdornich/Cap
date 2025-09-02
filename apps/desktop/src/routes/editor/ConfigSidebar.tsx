@@ -13,8 +13,9 @@ import { createEventListenerMap } from "@solid-primitives/event-listener";
 import { createWritableMemo } from "@solid-primitives/memo";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { appDataDir, resolveResource } from "@tauri-apps/api/path";
-import { BaseDirectory, writeFile } from "@tauri-apps/plugin-fs";
+import { BaseDirectory, writeFile, exists, mkdir, readDir } from "@tauri-apps/plugin-fs";
 import { type as ostype } from "@tauri-apps/plugin-os";
+import { Menu } from "@tauri-apps/api/menu";
 import { cx } from "cva";
 import {
   For,
@@ -131,6 +132,8 @@ const BACKGROUND_GRADIENTS = [
 ] satisfies Array<{ from: RGBColor; to: RGBColor }>;
 
 const WALLPAPER_NAMES = [
+  // Custom/My Wallpapers
+  "custom/stable-mischief",
   // macOS wallpapers
   "macOS/sequoia-dark",
   "macOS/sequoia-light",
@@ -195,6 +198,7 @@ const CAMERA_SHAPES = [
 ] satisfies Array<{ name: string; value: CameraShape }>;
 
 const BACKGROUND_THEMES = {
+  custom: "My Wallpapers",
   macOS: "macOS",
   dark: "Dark",
   blue: "Blue",
@@ -410,6 +414,34 @@ export function ConfigSidebar() {
               />
             </Field>
           )}
+          <Field
+            name="Audio/Video Sync"
+            icon={<IconLucideClock class="size-4" />}
+          >
+            <div class="text-xs text-gray-400 mb-2">
+              Adjust if audio is out of sync with video
+            </div>
+            <Slider
+              value={[project.audio.syncOffsetMs ?? 0]}
+              onChange={(v) => setProject("audio", "syncOffsetMs", v[0])}
+              minValue={-2000}
+              maxValue={2000}
+              step={10}
+              formatTooltip={(v) => {
+                if (v === 0) return "No offset";
+                const absValue = Math.abs(v);
+                const direction = v > 0 ? "ahead" : "behind";
+                return `${absValue}ms (audio ${direction})`;
+              }}
+            />
+            <div class="text-xs text-gray-400 mt-1 text-center">
+              {project.audio.syncOffsetMs === 0 
+                ? "Audio and video are in sync" 
+                : project.audio.syncOffsetMs > 0 
+                  ? `Audio plays ${project.audio.syncOffsetMs}ms earlier`
+                  : `Audio plays ${Math.abs(project.audio.syncOffsetMs)}ms later`}
+            </div>
+          </Field>
         </KTabs.Content>
         <KTabs.Content value="cursor" class="flex flex-col gap-6">
           <Field
@@ -550,7 +582,7 @@ export function ConfigSidebar() {
           <CaptionsTab />
         </KTabs.Content>
       </div>
-      <Show when={editorState.timeline.selection}>
+      <Show when={editorState.timeline.selection && editorState.timeline.selection.type !== "caption"}>
         {(selection) => (
           <div class="absolute inset-0 p-[0.75rem] text-[0.875rem] space-y-4 bg-gray-1 dark:bg-gray-2 z-50 animate-in slide-in-from-bottom-2 fade-in">
             <Suspense>
@@ -607,26 +639,61 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
   const [backgroundTab, setBackgroundTab] =
     createSignal<keyof typeof BACKGROUND_THEMES>("macOS");
 
-  const [wallpapers] = createResource(async () => {
-    // Only load visible wallpapers initially
-    const visibleWallpaperPaths = WALLPAPER_NAMES.map(async (id) => {
+  const [wallpapers, { refetch: refetchWallpapers }] = createResource(async () => {
+    // Load bundled wallpapers
+    const bundledWallpaperPaths = WALLPAPER_NAMES.map(async (id) => {
       try {
         const path = await resolveResource(`assets/backgrounds/${id}.jpg`);
-        return { id, path };
+        return { id, path, isUserWallpaper: false };
       } catch (err) {
-        return { id, path: null };
+        return { id, path: null, isUserWallpaper: false };
       }
     });
 
-    // Load initial batch
-    const initialPaths = await Promise.all(visibleWallpaperPaths);
+    // Load user wallpapers from app data directory
+    const appDir = await appDataDir();
+    const userWallpapers: Array<{ id: string; path: string | null; isUserWallpaper: boolean }> = [];
+    
+    try {
+      // Read user wallpapers from the app data directory
+      // Look for files matching the pattern wallpaper-{theme}-{timestamp}.{ext}
+      const entries = await readDir(appDir);
+      const themes = ['macOS', 'dark', 'blue', 'purple', 'orange', 'custom'];
+      
+      for (const entry of entries) {
+        if (entry.isFile && entry.name) {
+          // Check if it matches our wallpaper naming pattern
+          const match = entry.name.match(/^wallpaper-(macOS|dark|blue|purple|orange|custom)-\d+\.(jpg|jpeg|png|webp)$/i);
+          if (match) {
+            let theme = match[1];
+            // All user-uploaded files should go to "custom" (My Wallpapers) tab
+            // These are identified by the long timestamp (13 digits)
+            if (entry.name.match(/wallpaper-\w+-\d{13}\./)) {
+              theme = 'custom';
+            }
+            userWallpapers.push({
+              id: `${theme}/${entry.name.replace(/\.[^.]+$/, '')}`,
+              path: `${appDir}/${entry.name}`,
+              isUserWallpaper: true
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load user wallpapers:', err);
+    }
 
-    return initialPaths
+    // Combine bundled and user wallpapers
+    const bundledPaths = await Promise.all(bundledWallpaperPaths);
+    const allWallpapers = [...bundledPaths, ...userWallpapers];
+
+    return allWallpapers
       .filter((p) => p.path !== null)
-      .map(({ id, path }) => ({
-        id,
-        url: convertFileSrc(path!),
-        rawPath: path!,
+      .map((p) => ({
+        id: p.id,
+        url: convertFileSrc(p.path!),
+        rawPath: p.path!,  // Always use the actual path for rawPath
+        isUserWallpaper: p.isUserWallpaper
       }));
   });
 
@@ -724,6 +791,7 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
   );
 
   let fileInput!: HTMLInputElement;
+  let wallpaperFileInput!: HTMLInputElement;
 
   // Optimize the debounced set project function
   const debouncedSetProject = (wallpaperPath: string) => {
@@ -737,6 +805,83 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
         resumeHistory();
       });
     });
+  };
+
+  // Helper function to handle wallpaper deletion
+  const handleDeleteWallpaper = async (wallpaper: { id: string; url?: string | null }) => {
+    if (!wallpaper.url) return;
+    
+    // Extract the file path from the URL
+    const filePath = decodeURIComponent(wallpaper.url.replace("file://", ""));
+    
+    // Show confirmation dialog
+    const confirmDelete = await new Promise<boolean>((resolve) => {
+      // Create a confirmation modal
+      const modal = document.createElement("div");
+      modal.className = "fixed inset-0 z-50 flex items-center justify-center bg-black/50";
+      modal.innerHTML = `
+        <div class="bg-gray-800 rounded-lg p-6 max-w-sm mx-4">
+          <h3 class="text-lg font-semibold mb-2 text-white">Delete Wallpaper?</h3>
+          <p class="text-white mb-4">This wallpaper will be permanently deleted. This action cannot be undone.</p>
+          <div class="flex gap-3 justify-end">
+            <button id="cancel-delete" class="px-4 py-2 text-white hover:bg-gray-700 rounded">Cancel</button>
+            <button id="confirm-delete" class="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded">Delete</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      const handleCancel = () => {
+        document.body.removeChild(modal);
+        resolve(false);
+      };
+      
+      const handleConfirm = () => {
+        document.body.removeChild(modal);
+        resolve(true);
+      };
+      
+      modal.querySelector("#cancel-delete")?.addEventListener("click", handleCancel);
+      modal.querySelector("#confirm-delete")?.addEventListener("click", handleConfirm);
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) handleCancel();
+      });
+      
+      // Handle Escape key
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          handleCancel();
+          document.removeEventListener("keydown", handleEscape);
+        }
+      };
+      document.addEventListener("keydown", handleEscape);
+    });
+    
+    if (!confirmDelete) return;
+    
+    try {
+      // Call the Rust backend to delete the file
+      await commands.deleteWallpaper(filePath);
+      
+      // Refresh the wallpaper list
+      await refetchWallpapers();
+      
+      // Show success toast
+      toast.success("Wallpaper deleted successfully");
+      
+      // If this was the selected wallpaper, clear the selection
+      if (project.background.source.type === "wallpaper" && 
+          project.background.source.path === filePath) {
+        setProject("background", "source", {
+          type: "wallpaper",
+          path: null,
+        } as const);
+      }
+    } catch (error) {
+      console.error("Failed to delete wallpaper:", error);
+      toast.error(typeof error === "string" ? error : "Failed to delete wallpaper");
+    }
   };
 
   const backgrounds: {
@@ -986,15 +1131,27 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
             </KTabs>
             {/** End of Background Tabs */}
             <KRadioGroup
-              value={
-                project.background.source.type === "wallpaper"
-                  ? wallpapers()?.find((w) =>
-                      (
-                        project.background.source as { path?: string }
-                      ).path?.includes(w.id)
-                    )?.url ?? undefined
-                  : undefined
-              }
+              value={(() => {
+                if (project.background.source.type !== "wallpaper") return undefined;
+                
+                const sourcePath = (project.background.source as { path?: string }).path;
+                
+                const matchingWallpaper = wallpapers()?.find((w) => {
+                  if (!sourcePath) return false;
+                  
+                  // For bundled wallpapers, the sourcePath might be just the ID
+                  // For user wallpapers, sourcePath is the full path
+                  if (w.isUserWallpaper) {
+                    // User wallpapers: direct path comparison
+                    return sourcePath === w.rawPath;
+                  } else {
+                    // Bundled wallpapers: check if sourcePath is the ID or the full path
+                    return sourcePath === w.id || sourcePath === w.rawPath;
+                  }
+                });
+                
+                return matchingWallpaper?.url ?? undefined;
+              })()}
               onChange={(photoUrl) => {
                 try {
                   const wallpaper = wallpapers()?.find(
@@ -1002,8 +1159,7 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
                   );
                   if (!wallpaper) return;
 
-                  // Get the raw path without any URL prefixes
-
+                  // Always use rawPath which is the full file path
                   debouncedSetProject(wallpaper.rawPath);
                 } catch (err) {
                   toast.error("Failed to set wallpaper");
@@ -1022,11 +1178,49 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
                   </div>
                 }
               >
-                <For each={filteredWallpapers().slice(0, 21)}>
+                {/* Upload button as first item */}
+                <button
+                  type="button"
+                  onClick={() => wallpaperFileInput?.click()}
+                  class="relative aspect-square rounded-lg border-2 border-dashed border-gray-5 hover:border-gray-6 hover:bg-gray-2 transition-colors flex flex-col items-center justify-center gap-1 cursor-pointer"
+                  title="Upload wallpaper"
+                >
+                  <svg
+                    class="w-6 h-6 text-gray-11"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
+                  </svg>
+                  <span class="text-[10px] text-gray-11">Add</span>
+                </button>
+                <For each={filteredWallpapers().slice(0, 20)}>
                   {(photo) => (
                     <KRadioGroup.Item
                       value={photo.url!}
                       class="relative aspect-square group"
+                      onContextMenu={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const menu = await Menu.new({
+                          id: "wallpaper-context-menu",
+                          items: [
+                            {
+                              id: "delete",
+                              text: "Delete",
+                              action: () => handleDeleteWallpaper(photo),
+                            },
+                          ],
+                        });
+                        await menu.popup();
+                      }}
                     >
                       <KRadioGroup.ItemInput class="peer" />
                       <KRadioGroup.ItemControl class="overflow-hidden w-full h-full rounded-lg transition cursor-pointer ui-not-checked:ring-offset-1 ui-not-checked:ring-offset-gray-200 ui-not-checked:hover:ring-1 ui-not-checked:hover:ring-gray-400 ui-checked:ring-2 ui-checked:ring-gray-500 ui-checked:ring-offset-2 ui-checked:ring-offset-gray-200">
@@ -1043,11 +1237,27 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
                 <Collapsible class="col-span-7">
                   <Collapsible.Content class="animate-in slide-in-from-top-2 fade-in">
                     <div class="grid grid-cols-7 gap-2">
-                      <For each={filteredWallpapers()}>
+                      <For each={filteredWallpapers().slice(20)}>
                         {(photo) => (
                           <KRadioGroup.Item
                             value={photo.url!}
                             class="relative aspect-square group"
+                            onContextMenu={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              
+                              const menu = await Menu.new({
+                                id: "wallpaper-context-menu",
+                                items: [
+                                  {
+                                    id: "delete",
+                                    text: "Delete",
+                                    action: () => handleDeleteWallpaper(photo),
+                                  },
+                                ],
+                              });
+                              await menu.popup();
+                            }}
                           >
                             <KRadioGroup.ItemInput class="peer" />
                             <KRadioGroup.ItemControl class="overflow-hidden w-full h-full rounded-lg border cursor-pointer border-gray-5 ui-checked:border-blue-9 ui-checked:ring-2 ui-checked:ring-blue-9 peer-focus-visible:border-2 peer-focus-visible:border-blue-9">
@@ -1066,6 +1276,87 @@ function BackgroundConfig(props: { scrollRef: HTMLDivElement }) {
                 </Collapsible>
               </Show>
             </KRadioGroup>
+            <input
+              type="file"
+              ref={wallpaperFileInput}
+              class="hidden"
+              accept="image/jpeg, image/jpg, image/png, image/webp"
+              onChange={async (e) => {
+                try {
+                  const file = e.currentTarget.files?.[0];
+                  if (!file) {
+                    return;
+                  }
+
+                  const validExtensions = ["jpg", "jpeg", "png", "webp"];
+                  const extension = file.name.split(".").pop()?.toLowerCase();
+                  
+                  if (!extension || !validExtensions.includes(extension)) {
+                    toast.error("Please select a JPG, PNG, or WebP image");
+                    return;
+                  }
+
+                  const currentTab = backgroundTab();
+                  
+                  // Get app directory for later use
+                  const appDir = await appDataDir();
+                  
+                  // Use "custom" prefix for user wallpapers to put them in "My Wallpapers" tab
+                  const simpleFileName = `wallpaper-custom-${Date.now()}.${extension}`;
+                  
+                  const arrayBuffer = await file.arrayBuffer();
+                  const uint8Array = new Uint8Array(arrayBuffer);
+
+                  await writeFile(simpleFileName, uint8Array, {
+                    baseDir: BaseDirectory.AppData,
+                  });
+                  
+                  // Clear input safely before async operations
+                  const inputElement = e.currentTarget;
+                  if (inputElement) {
+                    inputElement.value = "";
+                  }
+                  
+                  // Force a proper refresh by awaiting the refetch
+                  await refetchWallpapers();
+                  
+                  // Add a small delay to ensure file system operations complete
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                  
+                  // Now get the updated wallpapers and find the new one
+                  const updatedWallpapers = wallpapers();
+                  
+                  // Look for the newly uploaded wallpaper
+                  const newWallpaper = updatedWallpapers?.find(w => 
+                    w.rawPath?.includes(simpleFileName)
+                  );
+                  
+                  if (newWallpaper) {
+                    // Set it as the selected wallpaper using rawPath
+                    setProject("background", "source", {
+                      type: "wallpaper",
+                      path: newWallpaper.rawPath,  // Use the rawPath which is the full path for user wallpapers
+                    });
+                  } else {
+                    // Fallback: use the full path we know
+                    const fullPath = `${appDir}/${simpleFileName}`;
+                    setProject("background", "source", {
+                      type: "wallpaper",
+                      path: fullPath,
+                    });
+                  }
+                  
+                  toast.success("Wallpaper uploaded successfully!");
+                } catch (err) {
+                  toast.error(`Failed to upload wallpaper: ${err.message || err}`);
+                }
+
+                // Clear the input safely
+                if (e.currentTarget) {
+                  e.currentTarget.value = "";
+                }
+              }}
+            />
           </KTabs.Content>
           <KTabs.Content value="image">
             <Show

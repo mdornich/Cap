@@ -263,7 +263,7 @@ impl Default for Camera {
             hide: false,
             mirror: false,
             position: CameraPosition::default(),
-            size: 30.0,
+            size: 20.0,
             zoom_size: Some(Self::default_zoom_size()),
             rounding: Self::default_rounding(),
             shadow: 62.5,
@@ -307,6 +307,8 @@ pub struct AudioConfiguration {
     pub mic_stereo_mode: StereoMode,
     #[serde(default)]
     pub system_volume_db: f32,
+    #[serde(default)]
+    pub sync_offset_ms: f32,
 }
 
 impl Default for AudioConfiguration {
@@ -317,6 +319,7 @@ impl Default for AudioConfiguration {
             mic_volume_db: 0.0,
             mic_stereo_mode: StereoMode::default(),
             system_volume_db: 0.0,
+            sync_offset_ms: 0.0,
         }
     }
 }
@@ -495,9 +498,9 @@ impl Default for CaptionSettings {
             background_color: "#000000".to_string(),
             background_opacity: 80,
             position: "bottom".to_string(),
-            bold: true,
+            bold: false,
             italic: false,
-            outline: true,
+            outline: false,
             outline_color: "#000000".to_string(),
             export_with_subtitles: false,
         }

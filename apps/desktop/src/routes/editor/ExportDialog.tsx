@@ -95,6 +95,13 @@ export const FORMAT_OPTIONS = [
   { label: "GIF", value: "Gif" },
 ] as { label: string; value: ExportFormat; disabled?: boolean }[];
 
+export const CAPTION_EXPORT_OPTIONS = [
+  { label: "None", value: "none" },
+  { label: "Burn In", value: "burn" },
+  { label: "SRT File", value: "srt" },
+  { label: "Both", value: "both" },
+] as const;
+
 type ExportToOption = (typeof EXPORT_TO_OPTIONS)[number]["value"];
 
 interface Settings {
@@ -103,6 +110,7 @@ interface Settings {
   exportTo: ExportToOption;
   resolution: { label: string; value: string; width: number; height: number };
   compression: ExportCompression;
+  captionExport: "none" | "burn" | "srt" | "both";
 }
 export function ExportDialog() {
   const {
@@ -124,18 +132,25 @@ export function ExportDialog() {
       exportTo: "file",
       resolution: { label: "720p", value: "720p", width: 1280, height: 720 },
       compression: "Minimal",
+      captionExport: "none",
     }),
     { name: "export_settings" }
   );
 
   if (!["Mp4", "Gif"].includes(settings.format)) setSettings("format", "Mp4");
+  if (!["none", "burn", "srt", "both"].includes(settings.captionExport)) setSettings("captionExport", "none");
 
-  const exportWithSettings = (onProgress: (progress: FramesRendered) => void) =>
-    exportVideo(
+  const exportWithSettings = async (onProgress: (progress: FramesRendered) => void) => {
+    // Determine if captions should be burned in
+    const burnCaptions = settings.captionExport === "burn" || settings.captionExport === "both";
+    
+    // Export video first
+    return exportVideo(
       projectPath,
       {
-        format: settings.format,
+        format: settings.format as ExportFormat,
         fps: settings.fps,
+        burn_captions: burnCaptions,
         resolution_base: {
           x: settings.resolution.width,
           y: settings.resolution.height,
@@ -144,6 +159,7 @@ export function ExportDialog() {
       },
       onProgress
     );
+  };
 
   const [outputPath, setOutputPath] = createSignal<string | null>(null);
 
@@ -254,6 +270,42 @@ export function ExportDialog() {
       setExportState({ type: "copying" });
 
       await commands.copyFileToPath(videoPath, savePath);
+      
+      // Export captions if requested
+      console.log('Caption export setting:', settings.captionExport);
+      console.log('Project path:', projectPath);
+      console.log('Video saved to:', savePath);
+      
+      if (settings.captionExport === "srt" || settings.captionExport === "both") {
+        try {
+          // Extract video ID from project path (the UUID part of the .cap filename)
+          const pathParts = projectPath.split('/');
+          const capFileName = pathParts[pathParts.length - 1];
+          const videoId = capFileName.replace('.cap', '');
+          console.log('Exporting SRT for video ID:', videoId);
+          
+          const srtPath = await commands.exportCaptionsSrt(videoId);
+          console.log('SRT created at:', srtPath);
+          
+          if (srtPath) {
+            // Parse the save path more carefully
+            // savePath might be like: /Users/username/Desktop/video.mp4
+            const pathMatch = savePath.match(/^(.+)\/([^\/]+)\.([^\.]+)$/);
+            if (pathMatch) {
+              const [, directory, filename, extension] = pathMatch;
+              const srtSavePath = `${directory}/${filename}.srt`;
+              
+              // Copy SRT file to same location as video
+              await commands.copyFileToPath(srtPath, srtSavePath);
+              toast.success(`SRT file saved as: ${filename}.srt`);
+            } else {
+              toast.error("SRT exported but couldn't copy to video location");
+            }
+          }
+        } catch (error) {
+          toast.error("Failed to export SRT captions");
+        }
+      }
 
       setExportState({ type: "done" });
     },
@@ -473,27 +525,27 @@ export function ExportDialog() {
           <div class="flex flex-wrap gap-3">
             {/* Export to */}
             <div class="flex-1 p-4 rounded-xl bg-gray-2">
-              <div class="flex flex-col gap-3">
-                <h3 class="text-gray-12">Export to</h3>
-                <div class="flex gap-2">
-                  <For each={EXPORT_TO_OPTIONS}>
-                    {(option) => (
-                      <Button
-                        onClick={() => setSettings("exportTo", option.value)}
-                        class={cx(
-                          "flex gap-2 items-center",
-                          settings.exportTo === option.value && selectedStyle
-                        )}
-                        variant="secondary"
-                      >
-                        {option.icon}
-                        {option.label}
-                      </Button>
-                    )}
-                  </For>
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-gray-12">Export to</h3>
+                  <div class="flex gap-2">
+                    <For each={EXPORT_TO_OPTIONS}>
+                      {(option) => (
+                        <Button
+                          onClick={() => setSettings("exportTo", option.value)}
+                          class={cx(
+                            "flex gap-2 items-center",
+                            settings.exportTo === option.value && selectedStyle
+                          )}
+                          variant="secondary"
+                        >
+                          {option.icon}
+                          {option.label}
+                        </Button>
+                      )}
+                    </For>
+                  </div>
                 </div>
               </div>
-            </div>
             {/* Format */}
             <div class="p-4 rounded-xl bg-gray-2">
               <div class="flex flex-col gap-3">
@@ -545,86 +597,20 @@ export function ExportDialog() {
                 </div>
               </div>
             </div>
-            {/* Frame rate */}
-            <div class="overflow-hidden relative p-4 rounded-xl bg-gray-2">
-              <div class="flex flex-col gap-3">
-                <h3 class="text-gray-12">Frame rate</h3>
-                <KSelect<{ label: string; value: number }>
-                  options={
-                    settings.format === "Gif" ? GIF_FPS_OPTIONS : FPS_OPTIONS
-                  }
-                  optionValue="value"
-                  optionTextValue="label"
-                  placeholder="Select FPS"
-                  value={(settings.format === "Gif"
-                    ? GIF_FPS_OPTIONS
-                    : FPS_OPTIONS
-                  ).find((opt) => opt.value === settings.fps)}
-                  onChange={(option) => {
-                    const value =
-                      option?.value ?? (settings.format === "Gif" ? 10 : 30);
-                    trackEvent("export_fps_changed", {
-                      fps: value,
-                    });
-                    setSettings("fps", value);
-                  }}
-                  itemComponent={(props) => (
-                    <MenuItem<typeof KSelect.Item>
-                      as={KSelect.Item}
-                      item={props.item}
-                    >
-                      <KSelect.ItemLabel class="flex-1">
-                        {props.item.rawValue.label}
-                      </KSelect.ItemLabel>
-                    </MenuItem>
-                  )}
-                >
-                  <KSelect.Trigger class="flex flex-row gap-2 items-center px-3 w-full h-10 rounded-xl transition-colors bg-gray-3 disabled:text-gray-11">
-                    <KSelect.Value<
-                      (typeof FPS_OPTIONS)[number]
-                    > class="flex-1 text-sm text-left truncate tabular-nums text-[--gray-500]">
-                      {(state) => <span>{state.selectedOption()?.label}</span>}
-                    </KSelect.Value>
-                    <KSelect.Icon<ValidComponent>
-                      as={(props) => (
-                        <IconCapChevronDown
-                          {...props}
-                          class="size-4 shrink-0 transform transition-transform ui-expanded:rotate-180 text-[--gray-500]"
-                        />
-                      )}
-                    />
-                  </KSelect.Trigger>
-                  <KSelect.Portal>
-                    <PopperContent<typeof KSelect.Content>
-                      as={KSelect.Content}
-                      class={cx(topSlideAnimateClasses, "z-50")}
-                    >
-                      <MenuItemList<typeof KSelect.Listbox>
-                        class="overflow-y-auto max-h-32"
-                        as={KSelect.Listbox}
-                      />
-                    </PopperContent>
-                  </KSelect.Portal>
-                </KSelect>
-              </div>
-            </div>
-            {/* Compression */}
+            {/* Caption Export */}
             <div class="p-4 rounded-xl bg-gray-2">
               <div class="flex flex-col gap-3">
-                <h3 class="text-gray-12">Compression</h3>
+                <h3 class="text-gray-12">Caption Export</h3>
                 <div class="flex gap-2">
-                  <For each={COMPRESSION_OPTIONS}>
+                  <For each={CAPTION_EXPORT_OPTIONS}>
                     {(option) => (
                       <Button
-                        onClick={() => {
-                          setSettings(
-                            "compression",
-                            option.value as ExportCompression
-                          );
-                        }}
                         variant="secondary"
+                        onClick={() => {
+                          setSettings("captionExport", option.value);
+                        }}
                         class={cx(
-                          settings.compression === option.value && selectedStyle
+                          settings.captionExport === option.value && selectedStyle
                         )}
                       >
                         {option.label}
@@ -632,42 +618,146 @@ export function ExportDialog() {
                     )}
                   </For>
                 </div>
+                {settings.captionExport === "srt" && (
+                  <p class="text-xs text-gray-11">
+                    SRT file only - captions won't be embedded in video
+                  </p>
+                )}
+                {settings.captionExport === "burn" && (
+                  <p class="text-xs text-gray-11">
+                    Captions will be permanently embedded in the video
+                  </p>
+                )}
+                {settings.captionExport === "both" && (
+                  <p class="text-xs text-gray-11">
+                    Captions embedded in video + separate SRT file
+                  </p>
+                )}
               </div>
             </div>
+            {/* Frame rate */}
+            <div class="overflow-hidden relative p-4 rounded-xl bg-gray-2">
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-gray-12">Frame rate</h3>
+                  <KSelect<{ label: string; value: number }>
+                    options={
+                      settings.format === "Gif" ? GIF_FPS_OPTIONS : FPS_OPTIONS
+                    }
+                    optionValue="value"
+                    optionTextValue="label"
+                    placeholder="Select FPS"
+                    value={(settings.format === "Gif"
+                      ? GIF_FPS_OPTIONS
+                      : FPS_OPTIONS
+                    ).find((opt) => opt.value === settings.fps)}
+                    onChange={(option) => {
+                      const value =
+                        option?.value ?? (settings.format === "Gif" ? 10 : 30);
+                      trackEvent("export_fps_changed", {
+                        fps: value,
+                      });
+                      setSettings("fps", value);
+                    }}
+                    itemComponent={(props) => (
+                      <MenuItem<typeof KSelect.Item>
+                        as={KSelect.Item}
+                        item={props.item}
+                      >
+                        <KSelect.ItemLabel class="flex-1">
+                          {props.item.rawValue.label}
+                        </KSelect.ItemLabel>
+                      </MenuItem>
+                    )}
+                  >
+                    <KSelect.Trigger class="flex flex-row gap-2 items-center px-3 w-full h-10 rounded-xl transition-colors bg-gray-3 disabled:text-gray-11">
+                      <KSelect.Value<
+                        (typeof FPS_OPTIONS)[number]
+                      > class="flex-1 text-sm text-left truncate tabular-nums text-[--gray-500]">
+                        {(state) => <span>{state.selectedOption()?.label}</span>}
+                      </KSelect.Value>
+                      <KSelect.Icon<ValidComponent>
+                        as={(props) => (
+                          <IconCapChevronDown
+                            {...props}
+                            class="size-4 shrink-0 transform transition-transform ui-expanded:rotate-180 text-[--gray-500]"
+                          />
+                        )}
+                      />
+                    </KSelect.Trigger>
+                    <KSelect.Portal>
+                      <PopperContent<typeof KSelect.Content>
+                        as={KSelect.Content}
+                        class={cx(topSlideAnimateClasses, "z-50")}
+                      >
+                        <MenuItemList<typeof KSelect.Listbox>
+                          class="overflow-y-auto max-h-32"
+                          as={KSelect.Listbox}
+                        />
+                      </PopperContent>
+                    </KSelect.Portal>
+                  </KSelect>
+                </div>
+              </div>
+            {/* Compression */}
+            <div class="p-4 rounded-xl bg-gray-2">
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-gray-12">Compression</h3>
+                  <div class="flex gap-2">
+                    <For each={COMPRESSION_OPTIONS}>
+                      {(option) => (
+                        <Button
+                          onClick={() => {
+                            setSettings(
+                              "compression",
+                              option.value as ExportCompression
+                            );
+                          }}
+                          variant="secondary"
+                          class={cx(
+                            settings.compression === option.value && selectedStyle
+                          )}
+                        >
+                          {option.label}
+                        </Button>
+                      )}
+                    </For>
+                  </div>
+                </div>
+              </div>
             {/* Resolution */}
             <div class="flex-1 p-4 rounded-xl bg-gray-2">
-              <div class="flex flex-col gap-3">
-                <h3 class="text-gray-12">Resolution</h3>
-                <div class="flex gap-2">
-                  <For
-                    each={
-                      settings.format === "Gif"
-                        ? [RESOLUTION_OPTIONS._720p]
-                        : [
-                            RESOLUTION_OPTIONS._720p,
-                            RESOLUTION_OPTIONS._1080p,
-                            RESOLUTION_OPTIONS._4k,
-                          ]
-                    }
-                  >
-                    {(option) => (
-                      <Button
-                        class={cx(
-                          "flex-1",
-                          settings.resolution.value === option.value
-                            ? selectedStyle
-                            : ""
-                        )}
-                        variant="secondary"
-                        onClick={() => setSettings("resolution", option)}
-                      >
-                        {option.label}
-                      </Button>
-                    )}
-                  </For>
+                <div class="flex flex-col gap-3">
+                  <h3 class="text-gray-12">Resolution</h3>
+                  <div class="flex gap-2">
+                    <For
+                      each={
+                        settings.format === "Gif"
+                          ? [RESOLUTION_OPTIONS._720p]
+                          : [
+                              RESOLUTION_OPTIONS._720p,
+                              RESOLUTION_OPTIONS._1080p,
+                              RESOLUTION_OPTIONS._4k,
+                            ]
+                      }
+                    >
+                      {(option) => (
+                        <Button
+                          class={cx(
+                            "flex-1",
+                            settings.resolution.value === option.value
+                              ? selectedStyle
+                              : ""
+                          )}
+                          variant="secondary"
+                          onClick={() => setSettings("resolution", option)}
+                        >
+                          {option.label}
+                        </Button>
+                      )}
+                    </For>
+                  </div>
                 </div>
               </div>
-            </div>
           </div>
         </DialogContent>
       </Show>
@@ -815,7 +905,7 @@ export function ExportDialog() {
                             {(uploadState) => (
                               <div class="flex flex-col gap-4 justify-center items-center">
                                 <h1 class="text-lg font-medium text-center text-gray-12">
-                                  Uploading Cap...
+                                  Uploading Klip...
                                 </h1>
                                 <Switch>
                                   <Match
@@ -859,7 +949,7 @@ export function ExportDialog() {
                                   Upload Complete
                                 </h1>
                                 <p class="text-sm text-gray-11">
-                                  Your Cap has been uploaded successfully
+                                  Your Klip has been uploaded successfully
                                 </p>
                               </div>
                             </div>

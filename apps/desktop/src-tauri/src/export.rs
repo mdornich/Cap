@@ -1,4 +1,4 @@
-use crate::{get_video_metadata, FramesRendered};
+use crate::{system::get_video_metadata, FramesRendered};
 use cap_export::ExporterBase;
 use cap_project::{RecordingMeta, XY};
 use serde::Deserialize;

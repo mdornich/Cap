@@ -47,11 +47,6 @@ export default function Settings(props: RouteSectionProps) {
                 icon: IconLucideUnplug,
               },
               {
-                href: "license",
-                name: "License",
-                icon: IconLucideGift,
-              },
-              {
                 href: "experimental",
                 name: "Experimental",
                 icon: IconCapSettings,
@@ -86,13 +81,6 @@ export default function Settings(props: RouteSectionProps) {
           <Show when={version()}>
             {(v) => <p class="mb-1 text-xs text-gray-11">v{v()}</p>}
           </Show>
-          {auth.data ? (
-            <Button onClick={handleAuth} variant="secondary" class="w-full">
-              Sign Out
-            </Button>
-          ) : (
-            <SignInButton>Sign In</SignInButton>
-          )}
         </div>
       </div>
       <div class="overflow-y-hidden flex-1 animate-in">

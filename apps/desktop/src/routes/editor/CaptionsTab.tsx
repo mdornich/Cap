@@ -1,21 +1,21 @@
 import { batch, createEffect, createSignal, onMount, Show } from "solid-js";
-import { createStore } from "solid-js/store";
+import { debounce } from "@solid-primitives/scheduled";
 import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { exists } from "@tauri-apps/plugin-fs";
 import toast from "solid-toast";
 import { Button } from "@cap/ui-solid";
 import { Select as KSelect } from "@kobalte/core/select";
 import { createWritableMemo } from "@solid-primitives/memo";
-import { createElementSize } from "@solid-primitives/resize-observer";
 
 import { MenuItem, MenuItemList, PopperContent } from "./ui";
 import { topLeftAnimateClasses } from "./ui";
 import { TextInput } from "./TextInput";
-import { Toggle } from "~/components/Toggle";
+// import { Toggle } from "~/components/Toggle"; // No longer needed - using custom CaptionToggle
 import type { CaptionSettings, CaptionSegment } from "~/utils/tauri";
-import { Field, Slider, Subfield, Input } from "./ui";
+import { Field, Slider, Subfield, Input, IconCapMessageBubble, IconCapChevronDown } from "./ui";
 import { useEditorContext, FPS, OUTPUT_SIZE } from "./context";
 import { commands, events } from "~/utils/tauri";
+import { captionsStore } from "~/store/captions";
 
 // Model information
 interface ModelOption {
@@ -159,106 +159,101 @@ function RgbInput(props: { value: string; onChange: (value: string) => void }) {
 }
 
 // Add scroll position preservation for the container
+// Custom Toggle component that works around the black screen issue
+function CaptionToggle(props: { 
+  checked: boolean; 
+  onChange: (value: boolean) => void;
+  label?: string;
+}) {
+  const { editorState } = useEditorContext();
+  
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={props.checked}
+      onClick={(e) => {
+        e.stopPropagation();
+        const newValue = !props.checked;
+        props.onChange(newValue);
+        
+        // Force a frame re-render after a small delay to prevent black screen
+        setTimeout(() => {
+          events.renderFrameEvent.emit({
+            frame_number: Math.floor(editorState.playbackTime * FPS),
+            fps: FPS,
+            resolution_base: OUTPUT_SIZE,
+          });
+        }, 100);
+      }}
+      class={`relative inline-flex h-[1.5rem] w-[2.75rem] items-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+        props.checked ? 'bg-blue-600' : 'bg-gray-400'
+      }`}
+    >
+      <span class="sr-only">{props.label || "Toggle"}</span>
+      <span
+        class={`inline-block h-[1.25rem] w-[1.25rem] transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+          props.checked ? 'translate-x-[1.25rem]' : 'translate-x-[0.125rem]'
+        }`}
+      />
+    </button>
+  );
+}
+
 export function CaptionsTab() {
   const { project, setProject, editorInstance, editorState } =
     useEditorContext();
 
-  // Scroll management
-  let scrollContainerRef: HTMLDivElement | undefined;
-  const [scrollState, setScrollState] = createStore({
-    lastScrollTop: 0,
-    isScrolling: false,
-  });
-
-  // Track container size changes
-  const size = createElementSize(() => scrollContainerRef);
-
-  // Create a local store for caption settings to avoid direct project mutations
-  const [captionSettings, setCaptionSettings] = createStore(
-    project?.captions?.settings || {
-      enabled: false,
-      font: "Arial",
-      size: 24,
-      color: "#FFFFFF",
-      backgroundColor: "#000000",
-      backgroundOpacity: 80,
-      position: "bottom",
-      bold: true,
-      italic: false,
-      outline: true,
-      outlineColor: "#000000",
-      exportWithSubtitles: false,
-    }
-  );
-
-  // Sync caption settings with project and update player
-  createEffect(() => {
-    if (!project?.captions) return;
-
-    const settings = captionSettings;
-
-    // Only update if there are actual changes
-    if (
-      JSON.stringify(settings) !== JSON.stringify(project.captions.settings)
-    ) {
-      batch(() => {
-        // Update project settings
-        setProject("captions", "settings", settings);
-
-        // Force player refresh
-        events.renderFrameEvent.emit({
-          frame_number: Math.floor(editorState.playbackTime * FPS),
-          fps: FPS,
-          resolution_base: OUTPUT_SIZE,
-        });
+  // Helper function to save captions to disk
+  const saveCaptionsToDisk = async () => {
+    if (!project?.captions || !editorInstance?.path) return;
+    
+    try {
+      // Extract video ID from project path
+      const pathParts = editorInstance.path.split('/');
+      const capFileName = pathParts[pathParts.length - 1];
+      const videoId = capFileName.replace('.cap', '');
+      
+      // Save captions using the existing backend function
+      await commands.saveCaptions(videoId, {
+        segments: project.captions.segments || [],
+        settings: project.captions.settings || null
       });
+    } catch (e) {
+      // Silently handle error - captions will still work from memory
     }
-  });
+  };
 
-  // Sync project settings to local store
-  createEffect(() => {
-    if (project?.captions?.settings) {
-      setCaptionSettings(project.captions.settings);
-    }
-  });
-
+  // Debounced save function to avoid rapid successive saves
+  const debouncedSaveToDisk = debounce(() => saveCaptionsToDisk(), 500);
+  
   // Helper function to update caption settings
-  const updateCaptionSetting = (key: keyof CaptionSettings, value: any) => {
+  const updateCaptionSetting = async (key: keyof CaptionSettings, value: any) => {
     if (!project?.captions) return;
 
-    // Store scroll position before update
-    if (scrollContainerRef) {
-      setScrollState("lastScrollTop", scrollContainerRef.scrollTop);
-    }
-
-    // Update local store
-    setCaptionSettings({
-      ...captionSettings,
-      [key]: value,
-    });
-
-    // For font changes, force an immediate player update
-    if (key === "font") {
+    // Update the captions store for UI reactivity
+    captionsStore.updateSettings({ [key]: value });
+    
+    // Also update the project for persistence
+    setProject("captions", "settings", key, value);
+    
+    // Immediately send the updated project config to backend
+    // This ensures the new settings are available for rendering
+    await commands.setProjectConfig(project);
+    
+    // Force frame re-render to show the changes immediately
+    setTimeout(() => {
       events.renderFrameEvent.emit({
         frame_number: Math.floor(editorState.playbackTime * FPS),
         fps: FPS,
         resolution_base: OUTPUT_SIZE,
       });
-    }
+    }, 50); // Reduced delay since we're now sending config immediately
+    
+    // Save to disk with debounce
+    debouncedSaveToDisk();
   };
 
-  // Restore scroll position after any content changes
-  createEffect(() => {
-    // Track any size changes
-    const _ = size.height;
-
-    // Restore scroll position if we have one
-    if (scrollContainerRef && scrollState.lastScrollTop > 0) {
-      requestAnimationFrame(() => {
-        scrollContainerRef!.scrollTop = scrollState.lastScrollTop;
-      });
-    }
-  });
 
   // Add model selection state
   const [selectedModel, setSelectedModel] = createSignal(DEFAULT_MODEL);
@@ -277,7 +272,7 @@ export function CaptionsTab() {
   const [modelPath, setModelPath] = createSignal("");
   const [currentCaption, setCurrentCaption] = createSignal<string | null>(null);
 
-  // Ensure captions object is initialized in project config
+  // Ensure captions object is initialized in project config and sync with captionsStore
   createEffect(() => {
     if (!project || !editorInstance) return;
 
@@ -287,19 +282,23 @@ export function CaptionsTab() {
         segments: [],
         settings: {
           enabled: false,
-          font: "Arial",
+          font: "System Sans-Serif",
           size: 24,
           color: "#FFFFFF",
           backgroundColor: "#000000",
           backgroundOpacity: 80,
           position: "bottom",
-          bold: true,
+          bold: false,
           italic: false,
-          outline: true,
+          outline: false,
           outlineColor: "#000000",
           exportWithSubtitles: false,
         },
       });
+    } else if (project.captions.settings) {
+      // Sync project settings to captionsStore on load
+      // This ensures the UI shows the correct values
+      captionsStore.updateSettings(project.captions.settings);
     }
   });
 
@@ -493,7 +492,13 @@ export function CaptionsTab() {
       if (result && result.segments.length > 0) {
         // Update project with the new segments
         setProject("captions", "segments", result.segments);
+        // Update global captions store with the new segments
+        captionsStore.updateSegments(result.segments);
         updateCaptionSetting("enabled", true);
+        
+        // Save captions to disk after transcription
+        await saveCaptionsToDisk();
+        
         toast.success("Captions generated successfully!");
       } else {
         toast.error(
@@ -535,6 +540,9 @@ export function CaptionsTab() {
       "segments",
       project.captions.segments.filter((segment) => segment.id !== id)
     );
+    
+    // Save to disk after deletion
+    saveCaptionsToDisk();
   };
 
   const updateSegment = (
@@ -550,6 +558,9 @@ export function CaptionsTab() {
         segment.id === id ? { ...segment, ...updates } : segment
       )
     );
+    
+    // Save to disk after update
+    saveCaptionsToDisk();
   };
 
   const addSegment = (time: number) => {
@@ -565,35 +576,24 @@ export function CaptionsTab() {
         text: "New caption",
       },
     ]);
+    
+    // Save to disk after adding
+    saveCaptionsToDisk();
   };
 
   return (
-    <div class="flex flex-col h-full">
-      <div
-        class="p-[0.75rem] text-[0.875rem] h-full transition-[height] duration-200"
-        ref={(el) => (scrollContainerRef = el)}
-        onScroll={() => {
-          if (!scrollState.isScrolling && scrollContainerRef) {
-            setScrollState("isScrolling", true);
-            setScrollState("lastScrollTop", scrollContainerRef.scrollTop);
-
-            // Reset scrolling flag after scroll ends
-            setTimeout(() => {
-              setScrollState("isScrolling", false);
-            }, 150);
-          }
-        }}
-      >
-        <Field name="Captions" icon={<IconCapMessageBubble />}>
+    <>
+      <Field name="Captions" icon={<IconCapMessageBubble />}>
           <div class="flex flex-col gap-4">
             <Subfield name="Enable Captions">
-              <Toggle
-                checked={captionSettings.enabled}
+              <CaptionToggle
+                checked={captionsStore.state.settings.enabled}
                 onChange={(checked) => updateCaptionSetting("enabled", checked)}
+                label="Enable captions"
               />
             </Subfield>
 
-            <Show when={captionSettings.enabled}>
+            <Show when={captionsStore.state.settings.enabled}>
               <div class="space-y-6 transition-all duration-200">
                 {/* Model Selection and Download Section */}
                 <div class="space-y-4">
@@ -825,7 +825,7 @@ export function CaptionsTab() {
                       <span class="text-gray-500 text-sm">Font Family</span>
                       <KSelect<string>
                         options={fontOptions.map((f) => f.value)}
-                        value={captionSettings.font}
+                        value={captionsStore.state.settings.font}
                         onChange={(value) => {
                           if (value === null) return;
                           updateCaptionSetting("font", value);
@@ -845,7 +845,7 @@ export function CaptionsTab() {
                           </MenuItem>
                         )}
                       >
-                        <KSelect.Trigger class="w-full flex items-center justify-between rounded-lg shadow px-3 py-2 bg-white border border-gray-300">
+                        <KSelect.Trigger class="w-full flex items-center justify-between rounded-lg shadow px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white transition-colors">
                           <KSelect.Value<string>>
                             {(state) =>
                               fontOptions.find(
@@ -854,7 +854,7 @@ export function CaptionsTab() {
                             }
                           </KSelect.Value>
                           <KSelect.Icon>
-                            <IconCapChevronDown />
+                            <IconCapChevronDown class="text-gray-300" />
                           </KSelect.Icon>
                         </KSelect.Trigger>
                         <KSelect.Portal>
@@ -874,7 +874,7 @@ export function CaptionsTab() {
                     <div class="flex flex-col gap-2">
                       <span class="text-gray-500 text-sm">Size</span>
                       <Slider
-                        value={[captionSettings.size || 24]}
+                        value={[captionsStore.state.settings.size]}
                         onChange={(v) => updateCaptionSetting("size", v[0])}
                         minValue={12}
                         maxValue={48}
@@ -885,7 +885,7 @@ export function CaptionsTab() {
                     <div class="flex flex-col gap-2">
                       <span class="text-gray-500 text-sm">Font Color</span>
                       <RgbInput
-                        value={captionSettings.color || "#FFFFFF"}
+                        value={captionsStore.state.settings.color}
                         onChange={(value) =>
                           updateCaptionSetting("color", value)
                         }
@@ -905,7 +905,7 @@ export function CaptionsTab() {
                         Background Color
                       </span>
                       <RgbInput
-                        value={captionSettings.backgroundColor || "#000000"}
+                        value={captionsStore.state.settings.backgroundColor}
                         onChange={(value) =>
                           updateCaptionSetting("backgroundColor", value)
                         }
@@ -917,7 +917,7 @@ export function CaptionsTab() {
                         Background Opacity
                       </span>
                       <Slider
-                        value={[captionSettings.backgroundOpacity || 80]}
+                        value={[captionsStore.state.settings.backgroundOpacity]}
                         onChange={(v) =>
                           updateCaptionSetting("backgroundOpacity", v[0])
                         }
@@ -933,7 +933,7 @@ export function CaptionsTab() {
                 <Field name="Position" icon={<IconCapMessageBubble />}>
                   <KSelect<string>
                     options={["top", "bottom"]}
-                    value={captionSettings.position || "bottom"}
+                    value={captionsStore.state.settings.position}
                     onChange={(value) => {
                       if (value === null) return;
                       updateCaptionSetting("position", value);
@@ -949,7 +949,7 @@ export function CaptionsTab() {
                       </MenuItem>
                     )}
                   >
-                    <KSelect.Trigger class="w-full flex items-center justify-between rounded-lg shadow px-3 py-2 bg-white border border-gray-300">
+                    <KSelect.Trigger class="w-full flex items-center justify-between rounded-lg shadow px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white transition-colors">
                       <KSelect.Value<string>>
                         {(state) => (
                           <span class="capitalize">
@@ -958,7 +958,7 @@ export function CaptionsTab() {
                         )}
                       </KSelect.Value>
                       <KSelect.Icon>
-                        <IconCapChevronDown />
+                        <IconCapChevronDown class="text-gray-300" />
                       </KSelect.Icon>
                     </KSelect.Trigger>
                     <KSelect.Portal>
@@ -979,36 +979,39 @@ export function CaptionsTab() {
                   <div class="space-y-3">
                     <div class="flex flex-col gap-4">
                       <Subfield name="Bold">
-                        <Toggle
-                          checked={captionSettings.bold}
+                        <CaptionToggle
+                          checked={captionsStore.state.settings.bold}
                           onChange={(checked) =>
                             updateCaptionSetting("bold", checked)
                           }
+                          label="Bold text"
                         />
                       </Subfield>
                       <Subfield name="Italic">
-                        <Toggle
-                          checked={captionSettings.italic}
+                        <CaptionToggle
+                          checked={captionsStore.state.settings.italic}
                           onChange={(checked) =>
                             updateCaptionSetting("italic", checked)
                           }
+                          label="Italic text"
                         />
                       </Subfield>
                       <Subfield name="Outline">
-                        <Toggle
-                          checked={captionSettings.outline}
+                        <CaptionToggle
+                          checked={captionsStore.state.settings.outline}
                           onChange={(checked) =>
                             updateCaptionSetting("outline", checked)
                           }
+                          label="Text outline"
                         />
                       </Subfield>
                     </div>
 
-                    <Show when={captionSettings.outline}>
+                    <Show when={captionsStore.state.settings.outline}>
                       <div class="flex flex-col gap-2">
                         <span class="text-gray-500 text-sm">Outline Color</span>
                         <RgbInput
-                          value={captionSettings.outlineColor || "#000000"}
+                          value={captionsStore.state.settings.outlineColor}
                           onChange={(value) =>
                             updateCaptionSetting("outlineColor", value)
                           }
@@ -1021,11 +1024,12 @@ export function CaptionsTab() {
                 {/* Export Options */}
                 <Field name="Export Options" icon={<IconCapMessageBubble />}>
                   <Subfield name="Export with Subtitles">
-                    <Toggle
-                      checked={captionSettings.exportWithSubtitles}
+                    <CaptionToggle
+                      checked={captionsStore.state.settings.exportWithSubtitles}
                       onChange={(checked) =>
                         updateCaptionSetting("exportWithSubtitles", checked)
                       }
+                      label="Export with subtitles"
                     />
                   </Subfield>
                 </Field>
@@ -1133,8 +1137,7 @@ export function CaptionsTab() {
             </Show>
           </div>
         </Field>
-      </div>
-    </div>
+    </>
   );
 }
 

@@ -107,8 +107,8 @@ async openPermissionSettings(permission: OSPermission) : Promise<void> {
 async doPermissionsCheck(initialCheck: boolean) : Promise<OSPermissionsCheck> {
     return await TAURI_INVOKE("do_permissions_check", { initialCheck });
 },
-async requestPermission(permission: OSPermission) : Promise<void> {
-    await TAURI_INVOKE("request_permission", { permission });
+async requestPermission(permission: OSPermission) : Promise<boolean> {
+    return await TAURI_INVOKE("request_permission", { permission });
 },
 async uploadExportedVideo(path: string, mode: UploadMode) : Promise<UploadResult> {
     return await TAURI_INVOKE("upload_exported_video", { path, mode });
@@ -121,6 +121,9 @@ async getRecordingMeta(path: string, fileType: string) : Promise<RecordingMetaWi
 },
 async saveFileDialog(fileName: string, fileType: string) : Promise<string | null> {
     return await TAURI_INVOKE("save_file_dialog", { fileName, fileType });
+},
+async deleteWallpaper(filePath: string) : Promise<null> {
+    return await TAURI_INVOKE("delete_wallpaper", { filePath });
 },
 async listRecordings() : Promise<([string, RecordingMetaWithType])[]> {
     return await TAURI_INVOKE("list_recordings");
@@ -238,6 +241,12 @@ async deleteWhisperModel(modelPath: string) : Promise<null> {
  */
 async exportCaptionsSrt(videoId: string) : Promise<string | null> {
     return await TAURI_INVOKE("export_captions_srt", { videoId });
+},
+async setInstantSavePath(path: string | null) : Promise<null> {
+    return await TAURI_INVOKE("set_instant_save_path", { path });
+},
+async getInstantSavePath() : Promise<string | null> {
+    return await TAURI_INVOKE("get_instant_save_path");
 }
 }
 
@@ -289,7 +298,7 @@ uploadProgress: "upload-progress"
 export type AppTheme = "system" | "light" | "dark"
 export type AspectRatio = "wide" | "vertical" | "square" | "classic" | "tall"
 export type Audio = { duration: number; sample_rate: number; channels: number; start_time: number }
-export type AudioConfiguration = { mute: boolean; improve: boolean; micVolumeDb?: number; micStereoMode?: StereoMode; systemVolumeDb?: number }
+export type AudioConfiguration = { mute: boolean; improve: boolean; micVolumeDb?: number; micStereoMode?: StereoMode; systemVolumeDb?: number; syncOffsetMs?: number }
 export type AudioInputLevelChange = number
 export type AudioMeta = { path: string; 
 /**
@@ -334,7 +343,7 @@ export type GeneralSettingsStore = { instanceId?: string; uploadIndividualFiles?
 /**
  * @deprecated
  */
-openEditorAfterRecording?: boolean }
+openEditorAfterRecording?: boolean; instantModeSavePath?: string | null }
 export type GifExportSettings = { fps: number; resolution_base: XY<number> }
 export type HapticPattern = "Alignment" | "LevelChange" | "Generic"
 export type HapticPerformanceTime = "Default" | "Now" | "DrawCompleted"

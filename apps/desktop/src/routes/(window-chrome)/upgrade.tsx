@@ -475,7 +475,7 @@ export default function Page() {
                       <Pro class="w-[250px]" />
                       <div class="space-y-1 text-center">
                         <h3 class="text-2xl font-medium tracking-tight leading-5 text-gray-1">
-                          Cap Pro
+                          Klip Pro
                         </h3>
                         <p class="text-[0.875rem] text-gray-9">
                           For professional use and teams.
@@ -526,7 +526,7 @@ export default function Page() {
                       class="!rounded-full !text-lg w-full mx-auto"
                       onClick={openCheckoutInExternalBrowser}
                     >
-                      {loading() ? "Loading..." : "Upgrade to Cap Pro"}
+                      {loading() ? "Loading..." : "Upgrade to Klip Pro"}
                     </Button>
                   </div>
                 </div>

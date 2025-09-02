@@ -79,11 +79,11 @@ pub fn create_tray(app: &AppHandle) -> tauri::Result<()> {
             &MenuItem::with_id(
                 app,
                 "version",
-                format!("Cap v{}", env!("CARGO_PKG_VERSION")),
+                format!("Klip v{}", env!("CARGO_PKG_VERSION")),
                 false,
                 None::<&str>,
             )?,
-            &MenuItem::with_id(app, TrayItem::Quit, "Quit Cap", true, None::<&str>)?,
+            &MenuItem::with_id(app, TrayItem::Quit, "Quit Klip", true, None::<&str>)?,
         ],
     )?;
     let app = app.clone();

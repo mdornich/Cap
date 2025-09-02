@@ -39,10 +39,10 @@ impl Default for CaptionData {
     }
 }
 
-// Model context is shared and cached
-lazy_static::lazy_static! {
-    static ref WHISPER_CONTEXT: Arc<Mutex<Option<WhisperContext>>> = Arc::new(Mutex::new(None));
-}
+// No longer needed - we create a new context each time to avoid ownership issues
+// lazy_static! {
+//     static ref WHISPER_CONTEXT: Arc<Mutex<Option<WhisperContext>>> = Arc::new(Mutex::new(None));
+// }
 
 // Constants
 const WHISPER_SAMPLE_RATE: u32 = 16000;
@@ -83,14 +83,25 @@ async fn extract_audio_from_video(video_path: &str, output_path: &PathBuf) -> Re
 
         if let Some(segments) = meta["segments"].as_array() {
             for segment in segments {
-                // Add system audio if available
-                if let Some(system_audio) = segment["system_audio"]["path"].as_str() {
-                    audio_sources.push(base_path.join(system_audio));
+                // Prioritize microphone audio over system audio
+                // Add microphone audio if available - check both "mic" and "audio" for compatibility
+                if let Some(mic) = segment["mic"]["path"].as_str() {
+                    let mic_path = base_path.join(mic);
+                    log::info!("Found microphone audio at: {:?}", mic_path);
+                    audio_sources.push(mic_path);
+                } else if let Some(audio) = segment["audio"]["path"].as_str() {
+                    let audio_path = base_path.join(audio);
+                    log::info!("Found audio (legacy field) at: {:?}", audio_path);
+                    audio_sources.push(audio_path);
                 }
-
-                // Add microphone audio if available
-                if let Some(audio) = segment["audio"]["path"].as_str() {
-                    audio_sources.push(base_path.join(audio));
+                
+                // Only add system audio if we don't have microphone audio
+                if audio_sources.is_empty() {
+                    if let Some(system_audio) = segment["system_audio"]["path"].as_str() {
+                        let system_path = base_path.join(system_audio);
+                        log::warn!("Using system audio (no microphone found): {:?}", system_path);
+                        audio_sources.push(system_path);
+                    }
                 }
             }
         }
@@ -332,10 +343,44 @@ async fn extract_audio_from_video(video_path: &str, output_path: &PathBuf) -> Re
         let mut input = avformat::input(&video_path)
             .map_err(|e| format!("Failed to open video file: {}", e))?;
 
+        // Try to find the microphone audio stream
+        // In Cap recordings, typically:
+        // - First audio stream (index 0) = system audio
+        // - Second audio stream (index 1) = microphone audio
+        let mut mic_stream_index = None;
+        let mut any_audio_stream_index = None;
+        
+        for stream in input.streams() {
+            if stream.parameters().medium() == ffmpeg::media::Type::Audio {
+                let stream_index = stream.index();
+                log::info!(
+                    "Found audio stream at index {}: codec={:?}",
+                    stream_index,
+                    stream.parameters().id()
+                );
+                
+                if any_audio_stream_index.is_none() {
+                    any_audio_stream_index = Some(stream_index);
+                }
+                
+                // Prefer the second audio stream (usually microphone)
+                if stream_index == 1 {
+                    mic_stream_index = Some(stream_index);
+                    log::info!("Selected audio stream {} as likely microphone", stream_index);
+                    break;
+                }
+            }
+        }
+        
+        let selected_index = mic_stream_index
+            .or(any_audio_stream_index)
+            .ok_or_else(|| "No audio stream found".to_string())?;
+            
+        // Now get the actual stream using the index
         let stream = input
             .streams()
-            .best(ffmpeg::media::Type::Audio)
-            .ok_or_else(|| "No audio stream found".to_string())?;
+            .find(|s| s.index() == selected_index)
+            .ok_or_else(|| "Could not retrieve selected audio stream".to_string())?;
 
         let codec_params = stream.parameters();
 
@@ -519,19 +564,14 @@ async fn extract_audio_from_video(video_path: &str, output_path: &PathBuf) -> Re
 
 /// Load or initialize the WhisperContext
 async fn get_whisper_context(model_path: &str) -> Result<Arc<WhisperContext>, String> {
-    let mut context_guard = WHISPER_CONTEXT.lock().await;
-
     // Always create a new context to avoid issues with multiple uses
+    // Don't use the global WHISPER_CONTEXT as it causes ownership issues
     log::info!("Initializing Whisper context with model: {}", model_path);
     let ctx = WhisperContext::new_with_params(model_path, WhisperContextParameters::default())
         .map_err(|e| format!("Failed to load Whisper model: {}", e))?;
 
-    *context_guard = Some(ctx);
-
-    // Get a reference to the context and wrap it in an Arc
-    let context_ref = context_guard.as_ref().unwrap();
-    let context_arc = unsafe { Arc::new(std::ptr::read(context_ref)) };
-    Ok(context_arc)
+    // Simply wrap the context in an Arc - no unsafe code needed
+    Ok(Arc::new(ctx))
 }
 
 /// Process audio file with Whisper for transcription
@@ -1226,15 +1266,29 @@ pub async fn export_captions_srt(
     tracing::info!("Converting captions to SRT format");
     let srt_content = captions_to_srt(&captions_with_settings);
 
+    // Log a preview of the SRT content (first 500 chars)
+    let preview_len = srt_content.len().min(500);
+    tracing::info!("SRT Preview (first {} chars):\n{}", preview_len, &srt_content[..preview_len]);
+
     // Get path for SRT file
     let captions_dir = app_captions_dir(&app, &video_id)?;
     let srt_path = captions_dir.join("captions.srt");
     tracing::info!("Will write SRT file to: {:?}", srt_path);
 
+    // Create directory if it doesn't exist
+    if let Err(e) = std::fs::create_dir_all(&captions_dir) {
+        tracing::error!("Failed to create captions directory: {}", e);
+        return Err(format!("Failed to create captions directory: {}", e));
+    }
+
     // Write SRT file
-    match std::fs::write(&srt_path, srt_content) {
+    match std::fs::write(&srt_path, &srt_content) {
         Ok(_) => {
             tracing::info!("Successfully wrote SRT file to: {:?}", srt_path);
+            tracing::info!("SRT file size: {} bytes", srt_content.len());
+            
+            // Don't open Finder here since we'll copy the file to the user's chosen location
+            
             Ok(Some(srt_path))
         }
         Err(e) => {

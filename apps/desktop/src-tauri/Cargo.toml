@@ -1,6 +1,6 @@
 [package]
-name = "cap-desktop"
-version = "0.3.60"
+name = "klip-desktop"
+version = "0.0.1"
 description = "Beautiful screen recordings, owned by you."
 authors = ["you"]
 edition = "2021"
@@ -11,7 +11,7 @@ workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "cap_desktop"
+name = "klip_desktop"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
@@ -26,7 +26,6 @@ tauri = { workspace = true, features = [
 	"protocol-asset",
 	"tray-icon",
 	"image-png",
-	"devtools",
 ] }
 tauri-specta = { version = "=2.0.0-rc.20", features = ["derive", "typescript"] }
 tauri-plugin-dialog = "2.2.0"
@@ -123,6 +122,10 @@ windows-sys = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29.0", features = ["fs"] }
+
+[features]
+default = []
+r2-upload = []
 
 # Optimize for smaller binary size
 [profile.release]

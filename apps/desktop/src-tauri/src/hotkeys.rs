@@ -1,11 +1,12 @@
-use crate::{recording, RequestStartRecording};
-use global_hotkey::HotKeyState;
+use crate::{recording, App};
+use cap_media::sources::{list_screens, ScreenCaptureTarget};
+use cap_recording::RecordingMode;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 use tauri_specta::Event;
 
@@ -40,7 +41,7 @@ impl Hotkey {
     }
 }
 
-#[derive(Serialize, Deserialize, Type, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Type, PartialEq, Eq, Hash, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum HotkeyAction {
     StartRecording,
@@ -69,7 +70,8 @@ pub fn init(app: &AppHandle) {
     app.plugin(
         tauri_plugin_global_shortcut::Builder::new()
             .with_handler(|app, shortcut, event| {
-                if !matches!(event.state(), HotKeyState::Pressed) {
+                println!("Hotkey event received: {:?} - State: {:?}", shortcut, event.state());
+                if !matches!(event.state(), ShortcutState::Pressed) {
                     return;
                 }
 
@@ -77,8 +79,25 @@ pub fn init(app: &AppHandle) {
                 let store = state.lock().unwrap();
 
                 for (action, hotkey) in &store.hotkeys {
-                    if &hotkey.to_shortcut() == shortcut {
-                        tokio::spawn(handle_hotkey(app.clone(), *action));
+                    // Compare shortcuts by converting to debug strings
+                    // This is more reliable than the previous string splitting approach
+                    let test_shortcut = hotkey.to_shortcut();
+                    
+                    // Format both shortcuts as strings for comparison
+                    let test_str = format!("{:?}", test_shortcut);
+                    let received_str = format!("{:?}", shortcut);
+                    
+                    // Extract the key and modifiers part, ignoring the ID which is unique per instance
+                    // The format is like: Shortcut { modifiers: META | SHIFT, key: KeyP, id: ... }
+                    let test_parts: Vec<&str> = test_str.split(", id:").collect();
+                    let received_parts: Vec<&str> = received_str.split(", id:").collect();
+                    
+                    if !test_parts.is_empty() && !received_parts.is_empty() {
+                        if test_parts[0] == received_parts[0] {
+                            println!("Triggering hotkey action: {:?}", action);
+                            tokio::spawn(handle_hotkey(app.clone(), *action));
+                            break; // Only trigger one action per hotkey press
+                        }
                     }
                 }
             })
@@ -90,8 +109,11 @@ pub fn init(app: &AppHandle) {
 
     let global_shortcut = app.global_shortcut();
 
-    for hotkey in store.hotkeys.values() {
-        global_shortcut.register(hotkey.to_shortcut()).ok();
+    println!("Registering {} hotkeys", store.hotkeys.len());
+    for (action, hotkey) in &store.hotkeys {
+        let shortcut = hotkey.to_shortcut();
+        let result = global_shortcut.register(shortcut.clone());
+        println!("Registering hotkey for {:?}: {:?} - Result: {:?}", action, shortcut, result);
     }
 
     app.manage(Mutex::new(store));
@@ -100,8 +122,33 @@ pub fn init(app: &AppHandle) {
 async fn handle_hotkey(app: AppHandle, action: HotkeyAction) -> Result<(), String> {
     match action {
         HotkeyAction::StartRecording => {
-            let _ = RequestStartRecording.emit(&app);
-            Ok(())
+            let state = app.state::<crate::ArcLock<App>>();
+            let app_state = state.read().await;
+            let has_recording = app_state.current_recording.is_some();
+            drop(app_state);
+            
+            if has_recording {
+                // Stop the recording if one exists
+                recording::stop_recording(app.clone(), app.state()).await
+            } else {
+                // Start a new recording
+                let primary_screen = list_screens()
+                    .into_iter()
+                    .next()
+                    .map(|(s, _)| s);
+                
+                if let Some(screen) = primary_screen {
+                    let inputs = recording::StartRecordingInputs {
+                        capture_target: ScreenCaptureTarget::Screen { id: screen.id },
+                        mode: RecordingMode::Studio,
+                        capture_system_audio: true,
+                    };
+                    
+                    recording::start_recording(app.clone(), app.state(), inputs).await
+                } else {
+                    Err("No screens available for recording".to_string())
+                }
+            }
         }
         HotkeyAction::StopRecording => recording::stop_recording(app.clone(), app.state()).await,
         HotkeyAction::RestartRecording => {
@@ -137,3 +184,7 @@ pub fn set_hotkey(app: AppHandle, action: HotkeyAction, hotkey: Option<Hotkey>) 
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "hotkeys_test.rs"]
+mod hotkeys_test;

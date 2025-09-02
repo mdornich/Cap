@@ -163,14 +163,14 @@ function Page() {
     target: (): ScreenCaptureTarget => {
       switch (rawOptions.captureTarget.variant) {
         case "screen":
-          return { variant: "screen", id: options.screen()?.id ?? -1 };
+          return { variant: "screen", id: options.screen()?.id ?? _screens()?.[0]?.id ?? 0 };
         case "window":
-          return { variant: "window", id: options.window()?.id ?? -1 };
+          return { variant: "window", id: options.window()?.id ?? _windows()?.[0]?.id ?? 0 };
         case "area":
           return {
             variant: "area",
             bounds: rawOptions.captureTarget.bounds,
-            screen: options.screen()?.id ?? -1,
+            screen: options.screen()?.id ?? _screens()?.[0]?.id ?? 0,
           };
       }
     },
@@ -183,7 +183,7 @@ function Page() {
         "captureTarget",
         reconcile({
           variant: "screen",
-          id: options.screen()?.id ?? -1,
+          id: options.screen()?.id ?? _screens()?.[0]?.id ?? 0,
         })
       );
     }
@@ -247,20 +247,6 @@ function Page() {
           </Tooltip>
 
           <ChangelogButton />
-
-          <Show when={!license.isLoading && license.data?.type === "personal"}>
-            <button
-              type="button"
-              onClick={() => commands.showWindow("Upgrade")}
-              class="flex relative justify-center items-center w-5 h-5"
-            >
-              <IconLucideGift class="text-gray-11 size-5 hover:text-gray-12" />
-              <div
-                style={{ "background-color": "#FF4747" }}
-                class="block z-10 absolute top-0 right-0 size-1.5 rounded-full animate-bounce"
-              />
-            </button>
-          </Show>
 
           {import.meta.env.DEV && (
             <button
@@ -328,7 +314,7 @@ function Page() {
                 "captureTarget",
                 reconcile({
                   variant: "screen",
-                  id: options.screen()?.id ?? -1,
+                  id: options.screen()?.id ?? _screens()?.[0]?.id ?? 0,
                 })
               );
           }}
@@ -424,18 +410,12 @@ function Page() {
       />
       <SystemAudio />
       <div class="flex items-center space-x-1 w-full">
-        {rawOptions.mode === "instant" && !auth.data ? (
-          <SignInButton>
-            Sign In for{" "}
-            <IconCapInstant class="size-[0.8rem] ml-[0.14rem] mr-0.5" />
-            Instant Mode
-          </SignInButton>
-        ) : (
-          <Button
-            disabled={toggleRecording.isPending}
-            variant={isRecording() ? "destructive" : "primary"}
-            size="md"
-            onClick={() => toggleRecording.mutate()}
+        {/* AUTH BYPASS: Removed auth check for instant mode - always show record button */}
+        <Button
+          disabled={toggleRecording.isPending}
+          variant={isRecording() ? "destructive" : "primary"}
+          size="md"
+          onClick={() => toggleRecording.mutate()}
             class="flex flex-grow justify-center items-center"
           >
             {isRecording() ? (
@@ -451,7 +431,6 @@ function Page() {
               </>
             )}
           </Button>
-        )}
       </div>
     </div>
   );
@@ -465,7 +444,6 @@ function useRequestPermission() {
       if (type === "camera") {
         await commands.resetCameraPermissions();
       } else if (type === "microphone") {
-        console.log("wowzers");
         await commands.resetMicrophonePermissions();
       }
       await commands.requestPermission(type);
@@ -514,8 +492,8 @@ function createUpdateCheck() {
     if (!update) return;
 
     const shouldUpdate = await dialog.confirm(
-      `Version ${update.version} of Cap is available, would you like to install it?`,
-      { title: "Update Cap", okLabel: "Update", cancelLabel: "Ignore" }
+      `Version ${update.version} of Klip is available, would you like to install it?`,
+      { title: "Update Klip", okLabel: "Update", cancelLabel: "Ignore" }
     );
 
     if (!shouldUpdate) return;
@@ -962,6 +940,9 @@ function TargetSelectInfoPill<T>(props: {
         e.stopPropagation();
       }}
       onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        
         if (!props.permissionGranted) {
           props.requestPermission();
           return;

@@ -102,7 +102,7 @@ export default function () {
             <h1 class="text-[1.2rem] font-[700] mb-1 text-[--text-primary]">
               Permissions Required
             </h1>
-            <p class="text-gray-11">Cap needs permissions to run properly.</p>
+            <p class="text-gray-11">Klip needs permissions to run properly.</p>
           </div>
 
           <ul class="flex flex-col gap-4 py-8">
@@ -162,7 +162,7 @@ export default function () {
             <h1 class="text-[1.2rem] font-[700] mb-1 text-[--text-primary]">
               Select Recording Mode
             </h1>
-            <p class="text-gray-11">Choose how you want to record with Cap.</p>
+            <p class="text-gray-11">Choose how you want to record with Klip.</p>
           </div>
 
           <div class="w-full py-4">
@@ -170,7 +170,7 @@ export default function () {
           </div>
 
           <Button class="px-12" size="lg" onClick={handleContinue}>
-            Continue to Cap
+            Continue to Klip
           </Button>
         </Show>
       </div>
@@ -479,7 +479,7 @@ function Startup(props: { onClose: () => void }) {
                 />
               </div>
               <h1 class="text-5xl md:text-5xl font-bold mb-4 drop-shadow-[0_0_20px_rgba(0,0,0,0.2)]">
-                Welcome to Cap
+                Welcome to Klip
               </h1>
               <p class="text-2xl opacity-80 max-w-md mx-auto drop-shadow-[0_0_20px_rgba(0,0,0,0.2)]">
                 Beautiful screen recordings, owned by you.

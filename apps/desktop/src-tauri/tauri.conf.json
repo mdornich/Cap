@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Cap - Development",
-  "identifier": "so.cap.desktop.dev",
-  "mainBinaryName": "Cap - Development",
+  "productName": "Klip",
+  "identifier": "com.klip.app",
+  "mainBinaryName": "Klip",
   "build": {
     "beforeDevCommand": "pnpm localdev",
     "devUrl": "http://localhost:3001",
@@ -48,7 +48,7 @@
     },
     "macOS": {
       "dmg": {
-        "background": "assets/dmg-background.png",
+        "background": "assets/dmg-background-klip.png",
         "appPosition": {
           "x": 180,
           "y": 140
@@ -58,7 +58,11 @@
           "y": 140
         }
       },
-      "frameworks": ["../../../target/native-deps/Spacedrive.framework"]
+      "frameworks": [],
+      "signingIdentity": "Developer ID Application: mitch dornich (ZPTY96LTPB)",
+      "entitlements": "./entitlements.plist",
+      "hardenedRuntime": false,
+      "providerShortName": "ZPTY96LTPB"
     },
     "windows": {
       "nsis": {
@@ -75,7 +79,7 @@
     "fileAssociations": [
       {
         "ext": ["cap"],
-        "name": "Cap Project",
+        "name": "Klip Project",
         "mimeType": "application/x-cap-project",
         "role": "Editor"
       }

@@ -232,7 +232,9 @@ impl AudioPlayback {
         output_info.sample_format = output_info.sample_format.packed();
 
         let mut audio_renderer = AudioPlaybackBuffer::new(segments, output_info);
-        let playhead = f64::from(start_frame_number) / f64::from(fps);
+        // Apply audio sync offset (convert ms to seconds)
+        let sync_offset = project.borrow().audio.sync_offset_ms / 1000.0;
+        let playhead = (f64::from(start_frame_number) / f64::from(fps)) + sync_offset as f64;
         audio_renderer.set_playhead(playhead, &project.borrow());
 
         let mut config = supported_config.config();
@@ -247,8 +249,10 @@ impl AudioPlayback {
                 let project = project.borrow();
 
                 if prev_audio_config != project.audio {
+                    // Apply sync offset when audio config changes
+                    let sync_offset = project.audio.sync_offset_ms / 1000.0;
                     audio_renderer.set_playhead(
-                        playhead + elapsed as f64 / output_info.sample_rate as f64,
+                        playhead + sync_offset as f64 + elapsed as f64 / output_info.sample_rate as f64,
                         &project,
                     );
                     prev_audio_config = project.audio.clone();
