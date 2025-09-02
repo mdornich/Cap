@@ -924,13 +924,17 @@ When adding new feature ideas:
 
 | Feature | Priority | Status | Notes |
 |---------|----------|--------|-------|
-| Cutting during playback | High | ✅ Completed | Integrated and tested |
-| Editor shortcuts | High | ✅ Completed | Space, S, Mod+/- working |
-| Playback fixes | High | ✅ Completed | Seek while playing fixed | 
-| New recording flow | High | ⏳ Pending | Needs careful adaptation |
-| Scene segments | Medium | ⏳ Pending | Test with captions |
-| Camera preview | Medium | ⏳ Pending | |
-| Custom cursors | Low | ⏳ Pending | |
+| **PHASE 1 - COMPLETE** | | | |
+| Cutting during playback | High | ✅ Tested | Working perfectly - C key while playing |
+| Editor shortcuts | High | ✅ Tested | Space, S, Mod+/- all functional |
+| Playback fixes | High | ✅ Tested | Smooth seeking confirmed |
+| **PHASE 2 - IN PROGRESS** | | | |
+| Scene/Layout segments | High | 🔄 Next | Timeline layout track |
+| **PHASE 2 - PENDING** | | | |
+| New recording flow | High | ⏳ Pending | Area selection feature |
+| Camera preview | Medium | ⏳ Pending | Native preview |
+| **PHASE 3 - EVALUATE** | | | |
+| Custom cursors | Low | ⏳ Pending | Nice to have |
 | New recording engine | Low | 🤔 Evaluate | Major change |
 
 ---
