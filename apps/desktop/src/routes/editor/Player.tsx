@@ -18,6 +18,7 @@ import Tooltip from "~/components/Tooltip";
 import { commands } from "~/utils/tauri";
 import { FPS, OUTPUT_SIZE, useEditorContext } from "./context";
 import { ComingSoonTooltip, EditorButton, Slider } from "./ui";
+import { useEditorShortcuts } from "./useEditorShortcuts";
 import { formatTime } from "./utils";
 import { captionsStore } from "~/store/captions";
 import AspectRatioSelect from "./AspectRatioSelect";
@@ -138,20 +139,50 @@ export function Player() {
     }
   };
 
-  createEventListener(document, "keydown", async (e: KeyboardEvent) => {
-    if (e.code === "Space" && e.target === document.body) {
-      e.preventDefault();
-      const prevTime = editorState.previewTime;
-
-      if (!editorState.playing) {
-        if (prevTime !== null) setEditorState("playbackTime", prevTime);
-
-        await commands.seekTo(Math.floor(editorState.playbackTime * FPS));
-      }
-
-      await handlePlayPauseClick();
-    }
-  });
+  // Register keyboard shortcuts
+  useEditorShortcuts(
+    () => document.activeElement === document.body,
+    [
+      {
+        combo: "S",
+        handler: () =>
+          setEditorState(
+            "timeline",
+            "interactMode",
+            editorState.timeline.interactMode === "split" ? "seek" : "split",
+          ),
+      },
+      {
+        combo: "Mod+=",
+        handler: () =>
+          editorState.timeline.transform.updateZoom(
+            editorState.timeline.transform.zoom / 1.1,
+            editorState.playbackTime,
+          ),
+      },
+      {
+        combo: "Mod+-",
+        handler: () =>
+          editorState.timeline.transform.updateZoom(
+            editorState.timeline.transform.zoom * 1.1,
+            editorState.playbackTime,
+          ),
+      },
+      {
+        combo: "Space",
+        handler: async () => {
+          const prevTime = editorState.previewTime;
+          
+          if (!editorState.playing) {
+            if (prevTime !== null) setEditorState("playbackTime", prevTime);
+            await commands.seekTo(Math.floor(editorState.playbackTime * FPS));
+          }
+          
+          await handlePlayPauseClick();
+        },
+      },
+    ]
+  );
 
   return (
     <div class="flex flex-col flex-1 rounded-xl bg-gray-1 dark:bg-gray-2 border border-gray-3">

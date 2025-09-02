@@ -707,6 +707,44 @@ When adding new feature ideas:
 
 ---
 
+## 🏗️ Codebase Refactoring for Maintainability
+
+### Abstraction System for Easier Upstream Merges
+**Priority:** HIGH | **Complexity:** Medium (1 week)
+**Purpose:** Make future upstream merges from CapSoftware/Cap painless
+**Status:** ⏳ Planned | **Created:** 2025-09-02
+
+**Key Abstractions to Implement:**
+1. **Branding Configuration** (`config/branding.ts`)
+   - Single source for all Klip branding
+   - Environment variable support
+   - Build-time configuration
+
+2. **Feature Flags System** (`config/features.ts`)
+   - Toggle auth bypass
+   - Control premium features
+   - Set custom defaults (camera size, save paths)
+
+3. **Workarounds Registry** (`lib/workarounds/`)
+   - Isolated black screen fix
+   - Window selection fixes
+   - Memory fixes
+
+4. **Patch System**
+   - Git patches for core modifications
+   - Automatic reapplication after merges
+   - Merge helper scripts
+
+**Benefits:**
+- Reduce merge time from hours to minutes
+- Never lose customizations
+- Clear separation of our code from upstream
+- Team can easily understand all modifications
+
+**See:** [ABSTRACTION_STRATEGY.md](./ABSTRACTION_STRATEGY.md) for full implementation plan
+
+---
+
 ## 🔄 Upstream Features to Integrate from CapSoftware/Cap
 
 **Analysis Date:** 2025-09-02
