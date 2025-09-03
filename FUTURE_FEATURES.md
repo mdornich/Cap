@@ -11,20 +11,58 @@ This document tracks potential future features and enhancements for Cap/Klip. Fe
    - ✅ Model selection already available (Whisper models)
    - Note: Language translation moved to viewer features (let players handle translation of SRT files)
 
-2. **Closed Captioning Display**
+2. **Closed Captioning Display** ✅ **COMPLETE**
    - ✅ WebVTT/SRT export (completed 2025-08-28)
-   - ⏳ Add caption editing interface
-   - ⏳ Burn-in option for exported videos
+   - ✅ Caption editing interface (timeline-based drag & drop, inline text editing)
+   - ✅ Burn-in option for exported videos (working as expected)
 
-3. **Collaborative Feedback on Shareable Links**
-   - Timestamp-based commenting
-   - Threaded discussions
-   - Real-time updates
+3. **🔊 Hardware Accelerated Encoding (Windows)** ⚡ **NEW - JUST RELEASED**
+   - **Priority:** Critical | **Status:** Ready to integrate | **Date:** Sep 3, 2025
+   - MediaFoundation hardware acceleration for Windows
+   - Significant performance improvements during recording
+   - Lower CPU usage and better quality
+   - Fallback to FFmpeg if hardware acceleration fails
+
+4. **🗑️ Delete Recording Capability** 
+   - **Priority:** High | **Status:** Missing essential feature
+   - Delete recordings directly from desktop app
+   - Recording management improvements  
+   - API endpoints for deletion
+
+5. **🔊 Microphone Waveform in Editor**
+   - **Priority:** High | **Status:** Ready to integrate
+   - Visual waveforms for microphone and system audio
+   - Timeline audio visualization with bezier smoothing
+   - Improves audio editing and sync capabilities
 
 ### Next Sprint (Next 2 Weeks)
-1. **Filler Word Removal** - Clean up recordings automatically
-2. **Silence Removal** - Make videos more concise
-3. **Auto-generate Bug Reports** - Jira/Linear integration
+1. **🔍 Automatic Zoom Segment Generation** ⚡ **NEW**
+   - **Priority:** Medium | **Status:** Experimental feature ready to integrate
+   - Auto-creates zoom segments based on mouse clicks during recording
+   - Configurable time thresholds and context menu options
+   - Improves engagement by focusing on interaction areas
+
+2. **📐 Better GIF Export** ⚡ **NEW**
+   - **Priority:** Medium | **Status:** Ready to integrate  
+   - 1080p GIF export support with better compression
+   - Improved quality settings and performance
+   - New GIF encoding library
+
+3. **📝 Recording Management Improvements** ⚡ **NEW**
+   - **Priority:** Medium | **Status:** Ready to integrate
+   - Update pretty name/rename recordings from editor
+   - Better export dialog UI improvements
+   - Enhanced button hover states and widths
+
+4. **Filler Word Removal** - Clean up recordings automatically
+5. **Silence Removal** - Make videos more concise  
+6. **Auto-generate Bug Reports** - Jira/Linear integration
+
+### Backlog (After Web Service Implementation)
+1. **Collaborative Feedback on Shareable Links** 🚨 **REQUIRES WEB SERVICE**
+   - Timestamp-based commenting and threaded discussions
+   - Real-time updates and user authentication
+   - **Blocked by:** Klip Web Service Architecture implementation
 
 ### Backlog (1-2 Months)
 1. **Cloudflare Stream Integration** - Alternative storage provider
@@ -215,6 +253,83 @@ Enable built-in threaded commenting and collaboration directly on shareable vide
 - Privacy controls (who can comment, view comments)
 - Mobile-responsive commenting interface
 - Integration with existing sharing permissions
+
+**🚨 CRITICAL INFRASTRUCTURE REQUIREMENT:**
+This feature requires implementing **Option B: Standalone Klip Web Service** (see Web Service Architecture section below).
+
+---
+
+## 🏗️ Infrastructure Features
+
+### Klip Web Service Architecture (Option B)
+**Priority:** High (Required for collaborative features) | **Complexity:** High (3-4 weeks)
+**Status:** Planning Phase | **Date:** 2025-01-23
+
+**Overview:**
+To support collaborative feedback, view tracking, and user authentication, Klip needs its own web service separate from the desktop application. This replaces dependency on Cap's infrastructure with a self-hosted solution.
+
+**Core Components:**
+
+**1. Web Application:**
+- Next.js web app (based on existing `/apps/web/` codebase)
+- Video player with commenting interface (`/v/[videoId]` routes)
+- User authentication and session management
+- Dashboard for video management and analytics
+
+**2. Backend Services:**
+- RESTful API for video uploads, metadata, comments
+- User management (registration, login, permissions)
+- File storage system (local filesystem or S3-compatible)
+- Database for users, videos, comments, analytics
+
+**3. Desktop Integration:**
+- Modified Tauri `uploadExportedVideo` command
+- Upload to Klip web service instead of Cap servers
+- Generate Klip sharing URLs (`yourserver.com/v/videoId`)
+- Remove Cap authentication dependencies
+
+**4. Database Schema:**
+```sql
+-- Users and authentication
+users, sessions, organizations
+
+-- Video management  
+videos, video_metadata, video_shares, video_views
+
+-- Collaborative features
+comments, comment_replies, comment_reactions
+notifications, activity_logs
+
+-- Analytics
+view_analytics, engagement_metrics
+```
+
+**Deployment Options:**
+- **Self-Hosted:** Docker container on VPS/cloud server
+- **Local Network:** Run on local server for team access
+- **Cloud Services:** Deploy to Vercel/Railway/AWS with database
+
+**Benefits:**
+- ✅ Complete independence from Cap infrastructure
+- ✅ Full control over data and privacy
+- ✅ Custom branding and domain
+- ✅ Advanced analytics and user management
+- ✅ Collaborative features (comments, sharing, permissions)
+- ✅ View tracking and engagement metrics
+
+**Migration Path:**
+1. **Phase 1:** Deploy web service with basic video hosting
+2. **Phase 2:** Modify desktop app to upload to Klip service  
+3. **Phase 3:** Add user authentication and permissions
+4. **Phase 4:** Implement collaborative commenting system
+5. **Phase 5:** Analytics dashboard and advanced features
+
+**Technical Implementation:**
+- Extend existing `/apps/web/` codebase 
+- Remove Cap-specific authentication and API calls
+- Add local video file serving and upload endpoints
+- Create simplified user management system
+- Deploy as standalone web service
 
 ---
 

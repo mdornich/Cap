@@ -51,13 +51,6 @@ function getWindowSize() {
 }
 
 export default function () {
-  const navigate = useNavigate();
-  
-  // For Klip, always use the new recording flow
-  onMount(() => {
-    navigate("/new-main", { replace: true });
-  });
-  
   return (
     <RecordingOptionsProvider>
       <Page />

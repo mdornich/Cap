@@ -107,6 +107,7 @@ declare global {
   const IconLucideVolume2: typeof import('~icons/lucide/volume2.jsx')['default']
   const IconLucideVolumeX: typeof import('~icons/lucide/volume-x.jsx')['default']
   const IconLucideX: typeof import('~icons/lucide/x.jsx')['default']
-  const IconMdiMonitor: typeof import("~icons/mdi/monitor.jsx")["default"]
+  const IconMaterialSymbolsScreenshotFrame2Rounded: typeof import('~icons/material-symbols/screenshot-frame2-rounded.jsx')['default']
+  const IconMdiMonitor: typeof import('~icons/mdi/monitor.jsx')['default']
   const IconPhMonitorBold: typeof import('~icons/ph/monitor-bold.jsx')['default']
 }
