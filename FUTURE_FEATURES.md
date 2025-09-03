@@ -707,4 +707,236 @@ When adding new feature ideas:
 
 ---
 
-*Last Updated: 2025-01-23*
+## 🏗️ Codebase Refactoring for Maintainability
+
+### Abstraction System for Easier Upstream Merges
+**Priority:** HIGH | **Complexity:** Medium (1 week)
+**Purpose:** Make future upstream merges from CapSoftware/Cap painless
+**Status:** ⏳ Planned | **Created:** 2025-09-02
+
+**Key Abstractions to Implement:**
+1. **Branding Configuration** (`config/branding.ts`)
+   - Single source for all Klip branding
+   - Environment variable support
+   - Build-time configuration
+
+2. **Feature Flags System** (`config/features.ts`)
+   - Toggle auth bypass
+   - Control premium features
+   - Set custom defaults (camera size, save paths)
+
+3. **Workarounds Registry** (`lib/workarounds/`)
+   - Isolated black screen fix
+   - Window selection fixes
+   - Memory fixes
+
+4. **Patch System**
+   - Git patches for core modifications
+   - Automatic reapplication after merges
+   - Merge helper scripts
+
+**Benefits:**
+- Reduce merge time from hours to minutes
+- Never lose customizations
+- Clear separation of our code from upstream
+- Team can easily understand all modifications
+
+**See:** [ABSTRACTION_STRATEGY.md](./ABSTRACTION_STRATEGY.md) for full implementation plan
+
+---
+
+## 🔄 Upstream Features to Integrate from CapSoftware/Cap
+
+**Analysis Date:** 2025-09-02
+**Total Upstream Commits:** 165 (since 2024-01-01)
+**Integration Branch:** `feature/upstream-integration-test`
+
+### 🎯 HIGH PRIORITY - Editor Enhancements
+
+#### 1. ✂️ Cutting During Playback
+**Status:** Ready to integrate | **Commit:** `42a1d474`
+**Description:** Support cutting segments while video is playing (not just when paused)
+**Implementation:** Simple change to Timeline component to use playbackTime when previewTime is null
+**Risk:** Low - isolated change to Timeline/index.tsx
+
+#### 2. ⌨️ Editor Shortcuts System
+**Status:** Ready to integrate | **Commit:** `2d967d30`
+**Description:** Comprehensive keyboard shortcuts for editor operations
+**Features:**
+- New `useEditorShortcuts` hook for centralized shortcut management
+- Space for play/pause
+- Mod+= for zoom in, Mod+- for zoom out
+- S for split, C for cut
+- Escape for deselect
+**Risk:** Medium - touches multiple components (Player, Timeline, AspectRatioSelect)
+**Note:** Must preserve our existing Command+R hotkey
+
+#### 3. 🎬 Scene/Layout Segments
+**Status:** Ready to integrate | **Commits:** `b8a0da2a`, `21568c8b`
+**Description:** New timeline layout system with "scene" segments for better video organization
+**Features:**
+- Visual scene breaks in timeline
+- Layout track for organizing content
+- Improved segment management
+**Risk:** High - significant timeline refactor, may conflict with our caption workarounds
+
+### 🎯 HIGH PRIORITY - Recording Flow
+
+#### 4. 📹 New Recording Flow (WITH AREA SELECTION!)
+**Status:** Needs careful integration | **Commits:** `096579ec`, `88ae2670`
+**Description:** Completely redesigned recording interface with RESIZABLE AREA SELECTION
+**Features:**
+- **✨ Area Selection with Resize Handles** - Select and resize custom recording area!
+  - 8 resize handles (all corners and edges)
+  - Drag to reposition selection
+  - Minimum size 150x150 pixels
+  - Multi-monitor support
+- Better window selection UI
+- Mode selection improvements (Studio/Instant)
+- Camera preview overhaul
+- Improved screen/window picker
+**Risk:** High - extensive changes, conflicts with our auth bypass and instant mode customizations
+**Integration Notes:** Must preserve our Klip branding and auth bypass
+**User Priority:** Specifically requested feature - ability to resize recording area
+
+#### 5. 🎥 Camera Preview Improvements
+**Status:** Consider integration | **Commits:** `89489e4f`, `74e8d412`
+**Description:** Native camera preview and better camera handling
+**Features:**
+- Native preview (no WebRTC)
+- Better performance
+- Improved camera selection
+**Risk:** Medium - may conflict with our 20% camera size default
+
+### 🎯 MEDIUM PRIORITY - Performance & Recording
+
+#### 6. 🚀 New Recording Engine (scap crates)
+**Status:** Major upgrade | **Commit:** `97b952d6`
+**Description:** Complete overhaul using new scap-* crates for recording
+**Benefits:**
+- Better performance
+- More reliable recording
+- Improved frame handling
+**Risk:** Very High - fundamental recording changes, needs extensive testing
+
+#### 7. 🎞️ MediaFoundation Encoder (Windows)
+**Status:** Windows-specific | **Commits:** `fa61a643`, `db4950cf`
+**Description:** New Windows-specific encoder for better performance
+**Risk:** Low for Mac users (not applicable)
+
+#### 8. 📊 Automatic Zoom Segments
+**Status:** Consider integration | **Commit:** `1897b8c0`
+**Description:** Automatically generate zoom segments in timeline
+**Risk:** Medium - new feature that might not align with our workflow
+
+### 🎯 MEDIUM PRIORITY - UI/UX Improvements
+
+#### 9. 🎨 New Button Styles
+**Status:** Design decision needed | **Commits:** `fa7448cf`, `afb7e0f9`, `00106375`
+**Description:** Updated button designs throughout the app
+**Risk:** Low - but conflicts with Klip branding
+**Decision Needed:** Keep our style or adopt new design?
+
+#### 10. ⚙️ Settings Layout Overhaul
+**Status:** Consider partial integration | **Commits:** `b71ce71c`, `2dcd57d4`
+**Description:** Redesigned settings interface
+**Risk:** Medium - might conflict with our custom settings
+
+#### 11. 🖱️ Custom Cursors
+**Status:** Nice to have | **Commits:** `1ba31e4d`, `1fe4cd27`, `5e59b954`
+**Description:** SVG-based custom cursors with better positioning
+**Features:**
+- SVG cursors for better quality
+- Improved cursor position tracking
+- Windows cursor improvements
+**Risk:** Low - additive feature
+
+### 🎯 LOW PRIORITY - Features We Might Skip
+
+#### 12. 💳 Stripe/Pricing Updates
+**Status:** Skip | **Commits:** `00f22bfe`, `670b6301`, `d8bac456`
+**Description:** Pro subscription and pricing changes
+**Reason to Skip:** We bypass auth/premium features
+
+#### 13. 🌐 Domain Management
+**Status:** Skip | **Commit:** `9cdab1cb`
+**Description:** Custom domain features
+**Reason to Skip:** Not relevant for local-only usage
+
+#### 14. 📊 Analytics Features
+**Status:** Skip | Multiple commits
+**Description:** Various analytics and tracking improvements
+**Reason to Skip:** We use local-only mode
+
+### 🔧 Bug Fixes to Cherry-Pick
+
+#### 15. 🐛 Critical Fixes
+- `c160af56` - Fix changing playback time while video is playing
+- `c9c2f327` - Fix duplicate shortcut
+- `845040b1` - Query for continuity camera properly
+- `9d18f6e6` - Make audio capture thread-safe
+- `90a5bad4` - Fix crash when screen capture can't keep up
+- `1bf182e6` - Stop recording if frames are being dropped
+
+### 📋 Integration Strategy
+
+**Phase 1: Low-Risk Editor Improvements** (This Week)
+1. ✂️ Cutting during playback (already applied)
+2. ⌨️ Editor shortcuts system
+3. 🐛 Playback time fixes
+
+**Phase 2: Recording Flow** (Next Week)
+1. 📹 Carefully adapt new recording flow
+2. 🎥 Test camera preview changes
+3. Preserve all our customizations
+
+**Phase 3: Major Updates** (Requires Testing)
+1. 🚀 Consider new scap recording engine
+2. 🎬 Scene segments if compatible
+
+**Do Not Integrate:**
+- Stripe/payment features
+- Domain management
+- Analytics that phone home
+- Anything that conflicts with Klip branding
+
+### 🚨 Integration Risks & Mitigations
+
+**High Risk Areas:**
+1. **Recording Flow** - Extensive conflicts with our customizations
+   - Mitigation: Manual integration, piece by piece
+2. **Timeline/Scene Segments** - May break caption workarounds
+   - Mitigation: Thorough testing of black screen fix
+3. **New Recording Engine** - Fundamental changes
+   - Mitigation: Create separate test branch
+
+**Our Customizations to Preserve:**
+- ✅ Klip branding (name, icons, bundle ID)
+- ✅ Auth bypass for premium features
+- ✅ Caption black screen workaround
+- ✅ Command+R recording hotkey
+- ✅ 20% camera size default
+- ✅ Instant mode save path
+- ✅ Wallpaper support
+- ✅ SRT export functionality
+
+### 📝 Integration Tracking
+
+| Feature | Priority | Status | Notes |
+|---------|----------|--------|-------|
+| **PHASE 1 - COMPLETE** | | | |
+| Cutting during playback | High | ✅ Tested | Working perfectly - C key while playing |
+| Editor shortcuts | High | ✅ Tested | Space, S, Mod+/- all functional |
+| Playback fixes | High | ✅ Tested | Smooth seeking confirmed |
+| **PHASE 2 - COMPLETE** | | | |
+| Scene/Layout segments | High | ✅ Tested | Timeline layout track for camera positioning |
+| **PHASE 2 - PENDING** | | | |
+| New recording flow | High | ⏳ Pending | Area selection feature |
+| Camera preview | Medium | ⏳ Pending | Native preview |
+| **PHASE 3 - EVALUATE** | | | |
+| Custom cursors | Low | ⏳ Pending | Nice to have |
+| New recording engine | Low | 🤔 Evaluate | Major change |
+
+---
+
+*Last Updated: 2025-09-02*

@@ -922,6 +922,7 @@ fn project_config_from_recording(
                 })
                 .collect(),
             zoom_segments: generate_zoom_segments_from_clicks(&completed_recording, &recordings),
+            scene_segments: None,
         }),
         ..default_config.unwrap_or_default()
     }

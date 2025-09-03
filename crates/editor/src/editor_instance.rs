@@ -232,6 +232,11 @@ impl EditorInstance {
                     .get_frames(segment_time as f32, !project.camera.hide)
                     .await
                 {
+                    // Check for scene mode at the current frame time
+                    let time = frame_number as f64 / fps as f64;
+                    let scene_mode = project.timeline.as_ref()
+                        .and_then(|t| t.get_scene_mode_at_time(time));
+                    
                     let uniforms = ProjectUniforms::new(
                         &self.render_constants,
                         &project,
@@ -240,6 +245,7 @@ impl EditorInstance {
                         resolution_base,
                         &segment.cursor,
                         &segment_frames,
+                        scene_mode,
                     );
                     self.renderer
                         .render_frame(segment_frames, uniforms, segment.cursor.clone())

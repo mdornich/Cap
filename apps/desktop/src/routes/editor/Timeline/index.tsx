@@ -7,10 +7,12 @@ import { produce } from "solid-js/store";
 
 import "./styles.css";
 
-import { useEditorContext } from "../context";
+import { commands } from "~/utils/tauri";
+import { FPS, OUTPUT_SIZE, useEditorContext } from "../context";
 import { formatTime } from "../utils";
 import { ClipTrack } from "./ClipTrack";
 import { CaptionTrack } from "./CaptionTrack";
+import { SceneTrack, type SceneSegmentDragState } from "./SceneTrack";
 import { TimelineContextProvider, useTimelineContext } from "./context";
 import { ZoomSegmentDragState, ZoomTrack } from "./ZoomTrack";
 
@@ -73,17 +75,39 @@ export function Timeline() {
   }
 
   let zoomSegmentDragState = { type: "idle" } as ZoomSegmentDragState;
+  let sceneSegmentDragState = { type: "idle" } as SceneSegmentDragState;
 
   async function handleUpdatePlayhead(e: MouseEvent) {
     const { left } = timelineBounds;
-    if (zoomSegmentDragState.type !== "moving") {
-      setEditorState(
-        "playbackTime",
-        Math.min(
-          secsPerPixel() * (e.clientX - left!) + transform().position,
-          totalDuration()
-        )
-      );
+    if (zoomSegmentDragState.type !== "moving" && sceneSegmentDragState.type !== "moving") {
+      // Guard against missing bounds and clamp computed time to [0, totalDuration()]
+      if (left == null) return;
+      const rawTime = secsPerPixel() * (e.clientX - left) + transform().position;
+      const newTime = Math.min(Math.max(0, rawTime), totalDuration());
+
+      // If playing, some backends require restart to seek reliably
+      if (editorState.playing) {
+        try {
+          await commands.stopPlayback();
+
+          // Round to nearest frame to prevent off-by-one drift
+          const targetFrame = Math.round(newTime * FPS);
+          await commands.seekTo(targetFrame);
+
+          // If the user paused during these async ops, bail out without restarting
+          if (!editorState.playing) {
+            setEditorState("playbackTime", newTime);
+            return;
+          }
+
+          await commands.startPlayback(FPS, OUTPUT_SIZE);
+          setEditorState("playing", true);
+        } catch (err) {
+          console.error("Failed to seek during playback:", err);
+        }
+      }
+
+      setEditorState("playbackTime", newTime);
     }
   }
 
@@ -98,6 +122,8 @@ export function Timeline() {
         projectActions.deleteZoomSegment(selection.index);
       else if (selection.type === "clip")
         projectActions.deleteClipSegment(selection.index);
+      else if (selection.type === "scene")
+        projectActions.deleteSceneSegment((selection as any).index);
       else if (selection.type === "caption" && project?.captions?.segments) {
         // Delete selected caption
         const segments = project.captions.segments.filter(s => s.id !== selection.id);
@@ -105,9 +131,11 @@ export function Timeline() {
         setEditorState("timeline", "selection", null);
       }
     } else if (e.code === "KeyC" && hasNoModifiers) {
-      if (!editorState.previewTime) return;
+      // Allow cutting while playing: use playbackTime when previewTime is null
+      const time = editorState.previewTime ?? editorState.playbackTime;
+      if (time === null || time === undefined) return;
 
-      projectActions.splitClipSegment(editorState.previewTime);
+      projectActions.splitClipSegment(time);
     } else if (e.code === "KeyN" && hasNoModifiers) {
       // Add new caption at current playback time
       if (!project?.captions) return;
@@ -149,7 +177,7 @@ export function Timeline() {
           createRoot((dispose) => {
             createEventListener(e.currentTarget, "mouseup", () => {
               handleUpdatePlayhead(e);
-              if (zoomSegmentDragState.type === "idle") {
+              if (zoomSegmentDragState.type === "idle" && sceneSegmentDragState.type === "idle") {
                 setEditorState("timeline", "selection", null);
               }
             });
@@ -253,6 +281,12 @@ export function Timeline() {
         <ZoomTrack
           onDragStateChanged={(v) => {
             zoomSegmentDragState = v;
+          }}
+          handleUpdatePlayhead={handleUpdatePlayhead}
+        />
+        <SceneTrack
+          onDragStateChanged={(v) => {
+            sceneSegmentDragState = v;
           }}
           handleUpdatePlayhead={handleUpdatePlayhead}
         />

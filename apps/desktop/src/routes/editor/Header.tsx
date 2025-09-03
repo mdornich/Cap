@@ -64,10 +64,10 @@ export function Header() {
   onMount(async () => {
     unlistenTitlebar = await initializeTitlebar();
     
-    // Add keyboard shortcut for caption toggle
+    // Add keyboard shortcut for caption toggle (T key)
     createEventListener(document, 'keydown', (e: KeyboardEvent) => {
-      // Check if 'C' key is pressed without modifiers
-      if (e.key === 'c' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      // Check if 'T' key is pressed without modifiers
+      if (e.key === 't' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
         // Don't trigger if user is typing in an input field
         const target = e.target as HTMLElement;
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;

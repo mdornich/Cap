@@ -219,9 +219,20 @@ pub async fn render_video_to_channel(
             std::mem::replace(&mut frame_number, prev + 1)
         };
 
+        // Determine camera visibility based on scene segments
+        let time = frame_number as f64 / fps as f64;
+        let scene_mode = project.timeline.as_ref()
+            .and_then(|t| t.get_scene_mode_at_time(time));
+        
+        let needs_camera = match scene_mode {
+            Some(cap_project::SceneMode::CameraOnly) => true,
+            Some(cap_project::SceneMode::HideCamera) => false,
+            Some(cap_project::SceneMode::Default) | None => !project.camera.hide,
+        };
+
         if let Some(segment_frames) = segment
             .decoders
-            .get_frames(segment_time as f32, !project.camera.hide)
+            .get_frames(segment_time as f32, needs_camera)
             .await
         {
             let uniforms = ProjectUniforms::new(
@@ -232,6 +243,7 @@ pub async fn render_video_to_channel(
                 resolution_base,
                 &segment.cursor,
                 &segment_frames,
+                scene_mode.clone(),
             );
 
             let frame = frame_renderer
@@ -444,6 +456,7 @@ pub struct ProjectUniforms {
     pub project: ProjectConfiguration,
     pub zoom: InterpolatedZoom,
     pub resolution_base: XY<u32>,
+    pub scene_mode: Option<cap_project::SceneMode>,
 }
 
 #[derive(Debug, Clone)]
@@ -620,6 +633,7 @@ impl ProjectUniforms {
         resolution_base: XY<u32>,
         cursor_events: &CursorEvents,
         segment_frames: &DecodedSegmentFrames,
+        scene_mode: Option<cap_project::SceneMode>,
     ) -> Self {
         let options = &constants.options;
         let output_size = Self::get_output_size(options, project, resolution_base);
@@ -844,6 +858,7 @@ impl ProjectUniforms {
             project: project.clone(),
             zoom,
             interpolated_cursor,
+            scene_mode,
         }
     }
 }
@@ -909,6 +924,7 @@ pub struct RendererLayers {
     pub(crate) camera: CameraLayer,
     pub(crate) captions: CaptionsLayer,
     pub(crate) camera_enabled: bool,
+    pub(crate) display_enabled: bool,
 }
 
 impl RendererLayers {
@@ -921,6 +937,7 @@ impl RendererLayers {
             camera: CameraLayer::new(device),
             captions: CaptionsLayer::new(device, queue),
             camera_enabled: false,
+            display_enabled: true,
         }
     }
 
@@ -943,24 +960,37 @@ impl RendererLayers {
             self.background_blur.prepare(&constants.queue, uniforms);
         }
 
-        self.display.prepare(
-            &constants.device,
-            &constants.queue,
-            segment_frames,
-            constants.options.screen_size,
-            uniforms.display,
-        );
+        // Determine what to render based on scene mode
+        self.display_enabled = match &uniforms.scene_mode {
+            Some(cap_project::SceneMode::CameraOnly) => false,
+            _ => true,
+        };
+        
+        self.camera_enabled = match &uniforms.scene_mode {
+            Some(cap_project::SceneMode::HideCamera) => false,
+            Some(cap_project::SceneMode::CameraOnly) => true,
+            _ => !uniforms.project.camera.hide,
+        };
 
-        self.cursor.prepare(
-            segment_frames,
-            uniforms.resolution_base,
-            cursor,
-            &uniforms.zoom,
-            uniforms,
-            constants,
-        );
+        if self.display_enabled {
+            self.display.prepare(
+                &constants.device,
+                &constants.queue,
+                segment_frames,
+                constants.options.screen_size,
+                uniforms.display,
+            );
 
-        self.camera_enabled = !uniforms.project.camera.hide;
+            self.cursor.prepare(
+                segment_frames,
+                uniforms.resolution_base,
+                cursor,
+                &uniforms.zoom,
+                uniforms,
+                constants,
+            );
+        }
+
         if self.camera_enabled {
             if let (Some(camera_size), Some(camera_frame), Some(camera_uniforms)) = (
                 constants.options.camera_size,
@@ -1030,12 +1060,12 @@ impl RendererLayers {
             session.swap_textures();
         }
 
-        {
+        if self.display_enabled {
             let mut pass = render_pass!(session.current_texture_view(), wgpu::LoadOp::Load);
             self.display.render(&mut pass);
         }
 
-        {
+        if self.display_enabled {
             let mut pass = render_pass!(session.current_texture_view(), wgpu::LoadOp::Load);
             self.cursor.render(&mut pass);
         }

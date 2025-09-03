@@ -138,6 +138,19 @@ export const [EditorContextProvider, useEditorContext] = createContextProvider(
           setEditorState("timeline", "selection", null);
         });
       },
+      deleteSceneSegment: (segmentIndex: number) => {
+        batch(() => {
+          setProject(
+            "timeline",
+            "sceneSegments",
+            produce((s) => {
+              if (!s) return;
+              return s.splice(segmentIndex, 1);
+            })
+          );
+          setEditorState("timeline", "selection", null);
+        });
+      },
     };
 
     createEffect(
@@ -236,6 +249,7 @@ export const [EditorContextProvider, useEditorContext] = createContextProvider(
           | null
           | { type: "zoom"; index: number }
           | { type: "clip"; index: number }
+          | { type: "scene"; index: number }
           | { type: "caption"; id: string },
         transform: {
           // visible seconds

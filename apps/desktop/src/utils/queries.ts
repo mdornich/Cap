@@ -87,11 +87,13 @@ export function createOptionsQuery() {
       cameraLabel: string | null;
       mode: RecordingMode;
       captureSystemAudio?: boolean;
+      targetMode?: "display" | "window" | "area" | null;
     }>({
       captureTarget: { variant: "screen", id: 0 },
       micName: null,
       cameraLabel: null,
       mode: "studio",
+      targetMode: null,
     }),
     { name: PERSIST_KEY }
   );
