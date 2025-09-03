@@ -928,8 +928,8 @@ When adding new feature ideas:
 | Cutting during playback | High | ✅ Tested | Working perfectly - C key while playing |
 | Editor shortcuts | High | ✅ Tested | Space, S, Mod+/- all functional |
 | Playback fixes | High | ✅ Tested | Smooth seeking confirmed |
-| **PHASE 2 - IN PROGRESS** | | | |
-| Scene/Layout segments | High | 🔄 Next | Timeline layout track |
+| **PHASE 2 - COMPLETE** | | | |
+| Scene/Layout segments | High | ✅ Tested | Timeline layout track for camera positioning |
 | **PHASE 2 - PENDING** | | | |
 | New recording flow | High | ⏳ Pending | Area selection feature |
 | Camera preview | Medium | ⏳ Pending | Native preview |

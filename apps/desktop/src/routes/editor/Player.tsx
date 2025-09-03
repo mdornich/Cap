@@ -181,6 +181,13 @@ export function Player() {
           await handlePlayPauseClick();
         },
       },
+      {
+        combo: "Escape",
+        handler: () => {
+          // Deselect timeline selection
+          setEditorState("timeline", "selection", null);
+        },
+      },
     ]
   );
 

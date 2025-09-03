@@ -89,6 +89,15 @@ function Page() {
     }
   });
 
+  // TODO: Handle target mode overlay windows when backend supports it
+  // createEffect(() => {
+  //   if (rawOptions.targetMode) {
+  //     commands.openTargetSelectOverlays();
+  //   } else {
+  //     commands.closeTargetSelectOverlays();
+  //   }
+  // });
+
   onMount(() => {
     // Enforce window size with multiple safeguards
     const currentWindow = getCurrentWindow();
@@ -303,20 +312,30 @@ function Page() {
       <div>
         <AreaSelectButton
           screen={options.screen()}
-          targetVariant={
-            rawOptions.captureTarget.variant === "window"
-              ? "other"
-              : rawOptions.captureTarget.variant
-          }
+          window={options.window()}
+          targetVariant={rawOptions.captureTarget.variant}
           onChange={(area) => {
-            if (!area)
-              setOptions(
-                "captureTarget",
-                reconcile({
-                  variant: "screen",
-                  id: options.screen()?.id ?? _screens()?.[0]?.id ?? 0,
-                })
-              );
+            if (!area) {
+              if (rawOptions.captureTarget.variant === "window") {
+                // Keep window mode, just remove area selection
+                setOptions(
+                  "captureTarget",
+                  reconcile({
+                    variant: "window",
+                    id: options.window()?.id ?? _windows()?.[0]?.id ?? 0,
+                  })
+                );
+              } else {
+                // For screen mode, revert to full screen
+                setOptions(
+                  "captureTarget",
+                  reconcile({
+                    variant: "screen",
+                    id: options.screen()?.id ?? _screens()?.[0]?.id ?? 0,
+                  })
+                );
+              }
+            }
           }}
         />
         <div
@@ -394,6 +413,27 @@ function Page() {
             }
             disabled={_windows()?.length === 0}
           />
+          {/* TODO: Implement window overlay selection when backend supports it
+          <button
+            type="button"
+            class={cx(
+              "px-3 py-2 rounded-lg border transition-all ml-2",
+              rawOptions.targetMode === "window"
+                ? "border-blue-500 bg-blue-500/10 text-blue-500"
+                : "border-gray-300 hover:border-gray-400"
+            )}
+            onClick={() => {
+              if (rawOptions.targetMode === "window") {
+                setOptions("targetMode", null);
+              } else {
+                setOptions("targetMode", "window");
+              }
+            }}
+            disabled={_windows()?.length === 0}
+          >
+            <IconCapPadding class="w-4 h-4" />
+          </button>
+          */}
         </div>
       </div>
       <CameraSelect
@@ -502,8 +542,9 @@ function createUpdateCheck() {
 }
 
 function AreaSelectButton(props: {
-  targetVariant: "screen" | "area" | "other";
+  targetVariant: "screen" | "area" | "window";
   screen: CaptureScreen | undefined;
+  window?: CaptureWindow | undefined;
   onChange(area?: number): void;
 }) {
   const [areaSelection, setAreaSelection] = createStore({ pending: false });
@@ -514,7 +555,7 @@ function AreaSelectButton(props: {
   }
 
   createEffect(() => {
-    if (props.targetVariant === "other") closeAreaSelection();
+    // Don't auto-close for any variant now
   });
 
   async function handleAreaSelectButtonClick() {
@@ -525,18 +566,39 @@ function AreaSelectButton(props: {
       return;
     }
 
-    const { screen } = props;
-    console.log({ screen });
-    if (!screen) return;
+    // Handle both screen and window modes
+    if (props.targetVariant === "window") {
+      const { window, screen } = props;
+      console.log({ window });
+      if (!window) return;
 
-    trackEvent("crop_area_enabled", {
-      screen_id: screen.id,
-      screen_name: screen.name,
-    });
-    setAreaSelection({ pending: false });
-    commands.showWindow({
-      CaptureArea: { screen_id: screen.id },
-    });
+      trackEvent("crop_area_enabled", {
+        mode: "window",
+        window_id: window.id,
+        window_name: window.name,
+      });
+      setAreaSelection({ pending: false });
+      // For window mode, we'll use the current screen for the area selector
+      // The area will be applied as a crop within the window bounds
+      const screenId = screen?.id ?? 0;
+      commands.showWindow({
+        CaptureArea: { screen_id: screenId },
+      });
+    } else {
+      const { screen } = props;
+      console.log({ screen });
+      if (!screen) return;
+
+      trackEvent("crop_area_enabled", {
+        mode: "screen",
+        screen_id: screen.id,
+        screen_name: screen.name,
+      });
+      setAreaSelection({ pending: false });
+      commands.showWindow({
+        CaptureArea: { screen_id: screen.id },
+      });
+    }
   }
 
   onMount(async () => {
@@ -608,11 +670,11 @@ function AreaSelectButton(props: {
             .finished.then(done)
         }
       >
-        <Show when={props.targetVariant !== "other"}>
-          {(targetScreenOrArea) => (
+        <Show when={true}>
+          {() => (
             <button
               type="button"
-              disabled={!targetScreenOrArea}
+              disabled={props.targetVariant === "window" ? !props.window : !props.screen}
               onClick={handleAreaSelectButtonClick}
               class={cx(
                 "flex items-center justify-center flex-shrink-0 w-full h-full rounded-[0.5rem] transition-all duration-200",

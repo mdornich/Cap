@@ -12,6 +12,7 @@ import { FPS, OUTPUT_SIZE, useEditorContext } from "../context";
 import { formatTime } from "../utils";
 import { ClipTrack } from "./ClipTrack";
 import { CaptionTrack } from "./CaptionTrack";
+import { SceneTrack, type SceneSegmentDragState } from "./SceneTrack";
 import { TimelineContextProvider, useTimelineContext } from "./context";
 import { ZoomSegmentDragState, ZoomTrack } from "./ZoomTrack";
 
@@ -74,10 +75,11 @@ export function Timeline() {
   }
 
   let zoomSegmentDragState = { type: "idle" } as ZoomSegmentDragState;
+  let sceneSegmentDragState = { type: "idle" } as SceneSegmentDragState;
 
   async function handleUpdatePlayhead(e: MouseEvent) {
     const { left } = timelineBounds;
-    if (zoomSegmentDragState.type !== "moving") {
+    if (zoomSegmentDragState.type !== "moving" && sceneSegmentDragState.type !== "moving") {
       // Guard against missing bounds and clamp computed time to [0, totalDuration()]
       if (left == null) return;
       const rawTime = secsPerPixel() * (e.clientX - left) + transform().position;
@@ -120,6 +122,8 @@ export function Timeline() {
         projectActions.deleteZoomSegment(selection.index);
       else if (selection.type === "clip")
         projectActions.deleteClipSegment(selection.index);
+      else if (selection.type === "scene")
+        projectActions.deleteSceneSegment((selection as any).index);
       else if (selection.type === "caption" && project?.captions?.segments) {
         // Delete selected caption
         const segments = project.captions.segments.filter(s => s.id !== selection.id);
@@ -173,7 +177,7 @@ export function Timeline() {
           createRoot((dispose) => {
             createEventListener(e.currentTarget, "mouseup", () => {
               handleUpdatePlayhead(e);
-              if (zoomSegmentDragState.type === "idle") {
+              if (zoomSegmentDragState.type === "idle" && sceneSegmentDragState.type === "idle") {
                 setEditorState("timeline", "selection", null);
               }
             });
@@ -277,6 +281,12 @@ export function Timeline() {
         <ZoomTrack
           onDragStateChanged={(v) => {
             zoomSegmentDragState = v;
+          }}
+          handleUpdatePlayhead={handleUpdatePlayhead}
+        />
+        <SceneTrack
+          onDragStateChanged={(v) => {
+            sceneSegmentDragState = v;
           }}
           handleUpdatePlayhead={handleUpdatePlayhead}
         />

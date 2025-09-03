@@ -88,6 +88,7 @@ impl Playback {
                     };
 
                     if let Some(segment_frames) = data {
+                        // For playback, we don't apply scene modes (they're for exports)
                         let uniforms = ProjectUniforms::new(
                             &self.render_constants,
                             &project,
@@ -96,6 +97,7 @@ impl Playback {
                             resolution_base,
                             &segment.cursor,
                             &segment_frames,
+                            None, // No scene mode for playback
                         );
 
                         self.renderer

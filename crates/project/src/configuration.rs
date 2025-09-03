@@ -427,11 +427,30 @@ pub enum ZoomMode {
     Manual { x: f32, y: f32 },
 }
 
+#[derive(Type, Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum SceneMode {
+    Default,
+    CameraOnly,
+    HideCamera,
+}
+
+#[derive(Type, Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SceneSegment {
+    pub start: f64,
+    pub end: f64,
+    #[serde(default)]
+    pub mode: Option<SceneMode>,
+}
+
 #[derive(Type, Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TimelineConfiguration {
     pub segments: Vec<TimelineSegment>,
     pub zoom_segments: Vec<ZoomSegment>,
+    #[serde(default)]
+    pub scene_segments: Option<Vec<SceneSegment>>,
 }
 
 impl TimelineConfiguration {
@@ -453,6 +472,17 @@ impl TimelineConfiguration {
 
     pub fn duration(&self) -> f64 {
         self.segments.iter().map(|s| s.duration()).sum()
+    }
+
+    pub fn get_scene_mode_at_time(&self, time: f64) -> Option<SceneMode> {
+        if let Some(ref scene_segments) = self.scene_segments {
+            for segment in scene_segments {
+                if time >= segment.start && time < segment.end {
+                    return segment.mode.clone().or(Some(SceneMode::Default));
+                }
+            }
+        }
+        None
     }
 }
 
