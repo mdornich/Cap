@@ -14,6 +14,39 @@ use crate::{ExportError, ExporterBase};
 pub struct GifExportSettings {
     pub fps: u32,
     pub resolution_base: XY<u32>,
+    #[serde(default = "default_quality")]
+    pub quality: GifQuality,
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum GifQuality {
+    /// Fast encoding, smaller file size, lower quality
+    Fast,
+    /// Balanced quality and file size (default)
+    Balanced,
+    /// Best quality, larger file size, slower encoding
+    High,
+}
+
+impl Default for GifQuality {
+    fn default() -> Self {
+        Self::Balanced
+    }
+}
+
+impl From<GifQuality> for cap_media::encoders::GifQuality {
+    fn from(quality: GifQuality) -> Self {
+        match quality {
+            GifQuality::Fast => cap_media::encoders::GifQuality::Fast,
+            GifQuality::Balanced => cap_media::encoders::GifQuality::Balanced,
+            GifQuality::High => cap_media::encoders::GifQuality::High,
+        }
+    }
+}
+
+fn default_quality() -> GifQuality {
+    GifQuality::Balanced
 }
 
 impl GifExportSettings {
@@ -47,7 +80,7 @@ impl GifExportSettings {
             gif_output_path.display()
         );
         let mut gif_encoder =
-            GifEncoderWrapper::new(&gif_output_path, output_size.0, output_size.1, fps)
+            GifEncoderWrapper::new(&gif_output_path, output_size.0, output_size.1, fps, self.quality.into())
                 .map_err(|e| format!("Failed to create GIF encoder: {}", e))?;
 
         let encoder_thread = tokio::task::spawn_blocking(move || {

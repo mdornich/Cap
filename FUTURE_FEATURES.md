@@ -16,37 +16,34 @@ This document tracks potential future features and enhancements for Cap/Klip. Fe
    - ✅ Caption editing interface (timeline-based drag & drop, inline text editing)
    - ✅ Burn-in option for exported videos (working as expected)
 
-3. **🔊 Hardware Accelerated Encoding (Windows)** ⚡ **NEW - JUST RELEASED**
-   - **Priority:** Critical | **Status:** Ready to integrate | **Date:** Sep 3, 2025
-   - MediaFoundation hardware acceleration for Windows
-   - Significant performance improvements during recording
-   - Lower CPU usage and better quality
-   - Fallback to FFmpeg if hardware acceleration fails
+3. **🗑️ Delete Recording Capability** ✅ **COMPLETE**
+   - **Priority:** High | **Status:** ✅ Already implemented in codebase
+   - ✅ Delete recordings directly from desktop app (trash icon with confirmation)
+   - ✅ Complete file cleanup with recursive directory removal
+   - ✅ Automatic UI refresh after deletion
+   - **File:** `/apps/desktop/src/routes/(window-chrome)/settings/recordings.tsx` (lines 274-284)
 
-4. **🗑️ Delete Recording Capability** 
-   - **Priority:** High | **Status:** Missing essential feature
-   - Delete recordings directly from desktop app
-   - Recording management improvements  
-   - API endpoints for deletion
-
-5. **🔊 Microphone Waveform in Editor**
-   - **Priority:** High | **Status:** Ready to integrate
-   - Visual waveforms for microphone and system audio
-   - Timeline audio visualization with bezier smoothing
-   - Improves audio editing and sync capabilities
+4. **🔊 Microphone Waveform in Editor** ✅ **COMPLETE**
+   - **Priority:** High | **Status:** ✅ Already implemented in codebase
+   - ✅ Visual waveforms for microphone and system audio (white/orange colors)
+   - ✅ Timeline audio visualization with bezier smoothing
+   - ✅ Real-time rendering with 0.1s precision and volume control integration
+   - **File:** `/apps/desktop/src/routes/editor/Timeline/ClipTrack.tsx` (WaveformCanvas component)
 
 ### Next Sprint (Next 2 Weeks)
-1. **🔍 Automatic Zoom Segment Generation** ⚡ **NEW**
-   - **Priority:** Medium | **Status:** Experimental feature ready to integrate
-   - Auto-creates zoom segments based on mouse clicks during recording
-   - Configurable time thresholds and context menu options
-   - Improves engagement by focusing on interaction areas
+1. **🔍 Automatic Zoom Segment Generation** ✅ **COMPLETE** ⚡ **NEW**
+   - **Priority:** Medium | **Status:** ✅ Implemented with smart algorithms
+   - ✅ Auto-creates zoom segments based on mouse clicks during recording
+   - ✅ Intelligent segment merging (combines clicks <2s apart)
+   - ✅ Configurable timing (0.5s before, 1.5s after click) with 1s minimum duration
+   - **File:** `/apps/desktop/src-tauri/src/recording.rs` (generate_zoom_segments_from_clicks)
 
-2. **📐 Better GIF Export** ⚡ **NEW**
-   - **Priority:** Medium | **Status:** Ready to integrate  
-   - 1080p GIF export support with better compression
-   - Improved quality settings and performance
-   - New GIF encoding library
+2. **📐 Better GIF Export** ✅ **COMPLETE** ⚡ **NEW**
+   - **Priority:** Medium | **Status:** ✅ Implemented with quality improvements
+   - ✅ 1080p GIF export support with 3 quality modes (Fast/Balanced/High)
+   - ✅ Advanced color palettes optimized for screen content
+   - ✅ Perceptual color matching and Floyd-Steinberg dithering
+   - **Files:** `/crates/export/src/gif.rs` + `/crates/media/src/encoders/gif.rs`
 
 3. **📝 Recording Management Improvements** ⚡ **NEW**
    - **Priority:** Medium | **Status:** Ready to integrate

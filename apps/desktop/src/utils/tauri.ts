@@ -344,7 +344,20 @@ export type GeneralSettingsStore = { instanceId?: string; uploadIndividualFiles?
  * @deprecated
  */
 openEditorAfterRecording?: boolean; instantModeSavePath?: string | null }
-export type GifExportSettings = { fps: number; resolution_base: XY<number> }
+export type GifExportSettings = { fps: number; resolution_base: XY<number>; quality?: GifQuality }
+export type GifQuality = 
+/**
+ * Fast encoding, smaller file size, lower quality
+ */
+"fast" | 
+/**
+ * Balanced quality and file size (default)
+ */
+"balanced" | 
+/**
+ * Best quality, larger file size, slower encoding
+ */
+"high"
 export type HapticPattern = "Alignment" | "LevelChange" | "Generic"
 export type HapticPerformanceTime = "Default" | "Now" | "DrawCompleted"
 export type Hotkey = { code: string; meta: boolean; ctrl: boolean; alt: boolean; shift: boolean }

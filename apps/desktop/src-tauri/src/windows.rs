@@ -215,14 +215,22 @@ impl ShowCapWindow {
                 .build()?,
             Self::Main => {
                 if permissions::do_permissions_check(false).necessary_granted() {
-                    self.window_builder(app, "/")
+                    let window = self.window_builder(app, "/")
                         .resizable(false)
                         .maximized(false)
                         .maximizable(false)
                         .always_on_top(true)
                         .visible_on_all_workspaces(true)
                         .center()
-                        .build()?
+                        .build()?;
+                    
+                    // Ensure the main window is visible
+                    println!("Attempting to show main window...");
+                    match window.show() {
+                        Ok(_) => println!("Main window shown successfully"),
+                        Err(e) => println!("Failed to show main window: {:?}", e),
+                    };
+                    window
                 } else {
                     Box::pin(Self::Setup.show(app)).await?
                 }

@@ -57,9 +57,9 @@ export default function (props: RouteSectionProps) {
             {/* prevents flicker idk */}
             <Suspense
               fallback={
-                (() => {
-                  console.log("Inner window chrome suspense fallback");
-                }) as any
+                <div class="flex items-center justify-center w-full h-full">
+                  <div class="text-gray-500">Loading content...</div>
+                </div>
               }
             >
               {props.children}
