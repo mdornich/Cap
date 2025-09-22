@@ -190,13 +190,18 @@ export const [EditorContextProvider, useEditorContext] = createContextProvider(
         )
     >({ type: "idle" });
 
-    createProgressBar(() =>
-      exportState?.type === "rendering"
-        ? (exportState.progress.renderedCount /
+    createProgressBar(() => {
+      if (exportState?.type === "rendering") {
+        return (exportState.progress.renderedCount /
             exportState.progress.totalFrames) *
-          100
-        : undefined
-    );
+          100;
+      } else if (exportState?.type === "uploading") {
+        return exportState.progress;
+      } else if (exportState?.type === "idle" || exportState?.type === "done") {
+        return undefined; // Explicitly clear the progress bar
+      }
+      return undefined;
+    });
 
     createEffect(
       on(

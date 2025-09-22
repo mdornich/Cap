@@ -1,6 +1,6 @@
 struct Uniforms {
-		crop_bounds: vec4<f32>,
-		target_bounds: vec4<f32>,
+    crop_bounds: vec4<f32>,
+    target_bounds: vec4<f32>,
     output_size: vec2<f32>,
     frame_size: vec2<f32>,
     velocity_uv: vec2<f32>,
@@ -13,6 +13,12 @@ struct Uniforms {
     shadow_size: f32,
     shadow_opacity: f32,
     shadow_blur: f32,
+    opacity: f32,
+    border_enabled: f32,
+    border_width: f32,
+    _padding1: vec2<f32>,
+    border_color: vec4<f32>,
+    _padding2: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -89,7 +95,24 @@ fn fs_main(@builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
 
     let bg_color = vec4<f32>(0.0);
 
-    // If outside the target area, just blend shadow with intermediate
+    if (uniforms.border_enabled > 0.0) {
+        let border_outer_dist = sdf_rounded_rect(
+            p - center,
+            size + vec2<f32>(uniforms.border_width),
+            uniforms.rounding_px + uniforms.border_width
+        );
+        let border_inner_dist = sdf_rounded_rect(p - center, size, uniforms.rounding_px);
+
+        if (border_outer_dist <= 0.0 && border_inner_dist > 0.0) {
+            let inner_alpha = smoothstep(-0.5, 0.5, border_inner_dist);
+            let outer_alpha = 1.0 - smoothstep(-0.5, 0.5, border_outer_dist);
+            let edge_alpha = inner_alpha * outer_alpha;
+
+            let border_alpha = edge_alpha * uniforms.border_color.w;
+            return vec4<f32>(uniforms.border_color.xyz, border_alpha);
+        }
+    }
+    
     if target_uv.x < 0.0 || target_uv.x > 1.0 || target_uv.y < 0.0 || target_uv.y > 1.0 {
         return shadow_color;
     }

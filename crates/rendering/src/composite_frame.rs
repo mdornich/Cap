@@ -25,7 +25,12 @@ pub struct CompositeVideoFrameUniforms {
     pub shadow_size: f32,
     pub shadow_opacity: f32,
     pub shadow_blur: f32,
-    pub _padding: [f32; 3],
+    pub opacity: f32,
+    pub border_enabled: f32,
+    pub border_width: f32,
+    pub _padding1: [f32; 2],
+    pub border_color: [f32; 4],
+    pub _padding2: [f32; 4],
 }
 
 impl CompositeVideoFrameUniforms {

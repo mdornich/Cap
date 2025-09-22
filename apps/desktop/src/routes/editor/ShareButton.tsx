@@ -1,4 +1,4 @@
-import { Button } from "@cap/ui-solid";
+import { Button, ProgressCircle } from "@cap/ui-solid";
 import { Select as KSelect } from "@kobalte/core/select";
 import { createMutation } from "@tanstack/solid-query";
 import { createSignal, Show } from "solid-js";
@@ -20,7 +20,7 @@ import {
 } from "./ui";
 
 function ShareButton() {
-  const { editorInstance, meta, customDomain } = useEditorContext();
+  const { editorInstance, meta, customDomain, editorState, setEditorState } = useEditorContext();
   const projectPath = editorInstance.path;
 
   const upload = createMutation(() => ({
@@ -140,6 +140,9 @@ function ShareButton() {
     if (uploadState.type === "rendering")
       return (uploadState.renderedFrames / uploadState.totalFrames) * 100;
     if (uploadState.type === "uploading") return uploadState.progress;
+    if (uploadState.type === "idle" || uploadState.type === "link-copied")
+      return undefined; // Clear the progress bar
+    return undefined;
   });
 
   return (
@@ -188,7 +191,13 @@ function ShareButton() {
               >
                 <Button
                   disabled={upload.isPending}
-                  onClick={() => upload.mutate()}
+                  onClick={() => {
+                    if (editorState.timeline.selection) {
+                      setEditorState("timeline", "selection", null);
+                      return;
+                    }
+                    upload.mutate();
+                  }}
                   variant="primary"
                   class="flex justify-center items-center size-[41px] !px-0 !py-0 space-x-1 rounded-xl"
                 >
@@ -287,11 +296,10 @@ function ShareButton() {
           class="text-gray-12 dark:text-gray-12"
         >
           <div class="w-[80%] text-center mx-auto relative z-10 space-y-6 py-4">
-            <div class="w-full bg-gray-3 rounded-full h-2.5 mb-2">
-              <div
-                class="bg-blue-9 h-2.5 rounded-full"
-                style={{
-                  width: `${
+            <div class="flex flex-col items-center gap-4">
+              <div class="relative">
+                <ProgressCircle 
+                  progress={
                     uploadState.type === "uploading"
                       ? uploadState.progress
                       : uploadState.type === "link-copied"
@@ -304,12 +312,54 @@ function ShareButton() {
                           100
                         )
                       : 0
-                  }%`,
-                }}
-              />
+                  } 
+                  size="xl"
+                  variant="primary"
+                  strokeWidth={3}
+                />
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <span class="text-sm font-medium text-gray-12">
+                    {Math.round(
+                      uploadState.type === "uploading"
+                        ? uploadState.progress
+                        : uploadState.type === "link-copied"
+                        ? 100
+                        : uploadState.type === "rendering"
+                        ? Math.min(
+                            (uploadState.renderedFrames /
+                              uploadState.totalFrames) *
+                              100,
+                            100
+                          )
+                        : 0
+                    )}%
+                  </span>
+                </div>
+              </div>
+              <div class="w-full bg-gray-3 rounded-full h-2.5">
+                <div
+                  class="bg-blue-9 h-2.5 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${
+                      uploadState.type === "uploading"
+                        ? uploadState.progress
+                        : uploadState.type === "link-copied"
+                        ? 100
+                        : uploadState.type === "rendering"
+                        ? Math.min(
+                            (uploadState.renderedFrames /
+                              uploadState.totalFrames) *
+                              100,
+                            100
+                          )
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
             </div>
 
-            <p class="relative z-10 mt-3 text-xs text-white">
+            <p class="relative z-10 mt-3 text-xs text-gray-11">
               {uploadState.type == "idle" || uploadState.type === "starting"
                 ? "Preparing to render..."
                 : uploadState.type === "rendering"

@@ -1,7 +1,5 @@
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { remove } from "@tauri-apps/plugin-fs";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { type as ostype } from "@tauri-apps/plugin-os";
 import { cx } from "cva";
@@ -19,6 +17,7 @@ import { Button } from "@cap/ui-solid";
 import CaptionControlsWindows11 from "~/components/titlebar/controls/CaptionControlsWindows11";
 import Tooltip from "~/components/Tooltip";
 import { trackEvent } from "~/utils/analytics";
+import { commands } from "~/utils/tauri";
 import { initializeTitlebar } from "~/utils/titlebar-state";
 import { useEditorContext, FPS, OUTPUT_SIZE } from "./context";
 import PresetsDropdown from "./PresetsDropdown";
@@ -58,6 +57,7 @@ export function Header() {
     project,
     setProject,
     editorState,
+    setEditorState,
   } = useEditorContext();
 
   let unlistenTitlebar: UnlistenFn | undefined;
@@ -118,16 +118,21 @@ export function Header() {
         {ostype() === "macos" && <div class="h-full w-[4rem]" />}
         <EditorButton
           onClick={async () => {
-            const currentWindow = getCurrentWindow();
-            if (!editorInstance.path) return;
+            if (editorState.timeline.selection) {
+              setEditorState("timeline", "selection", null);
+              return;
+            }
+            
             if (!(await ask("Are you sure you want to delete this recording?")))
               return;
-            await remove(editorInstance.path, {
-              recursive: true,
-            });
-            await currentWindow.close();
+              
+            await commands.editorDeleteProject();
           }}
-          tooltipText="Delete recording"
+          tooltipText={
+            editorState.timeline.selection
+              ? "Close selection"
+              : "Delete recording"
+          }
           leftIcon={<IconCapTrash class="w-5" />}
         />
         <EditorButton

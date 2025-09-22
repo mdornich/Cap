@@ -1,5 +1,4 @@
 import { Button } from "@cap/ui-solid";
-import { useNavigate } from "@solidjs/router";
 import {
   createMutation,
   createQuery,
@@ -51,13 +50,6 @@ function getWindowSize() {
 }
 
 export default function () {
-  const navigate = useNavigate();
-  
-  // For Klip, always use the new recording flow
-  onMount(() => {
-    navigate("/new-main", { replace: true });
-  });
-  
   return (
     <RecordingOptionsProvider>
       <Page />

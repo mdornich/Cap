@@ -1,4 +1,4 @@
-import { Button } from "@cap/ui-solid";
+import { Button, ProgressCircle } from "@cap/ui-solid";
 import { Select as KSelect } from "@kobalte/core/select";
 import { makePersisted } from "@solid-primitives/storage";
 import {
@@ -1075,14 +1075,27 @@ function RenderProgress(props: { state: RenderState; format?: ExportFormat }) {
 
 function ProgressView(props: { amount: number; label?: string }) {
   return (
-    <>
+    <div class="flex flex-col items-center gap-4">
+      <div class="relative">
+        <ProgressCircle 
+          progress={props.amount} 
+          size="xl"
+          variant="primary"
+          strokeWidth={3}
+        />
+        <div class="absolute inset-0 flex items-center justify-center">
+          <span class="text-sm font-medium text-gray-12">
+            {Math.round(props.amount)}%
+          </span>
+        </div>
+      </div>
       <div class="w-full bg-gray-3 rounded-full h-2.5">
         <div
-          class="bg-blue-9 h-2.5 rounded-full"
+          class="bg-blue-9 h-2.5 rounded-full transition-all duration-300"
           style={{ width: `${props.amount}%` }}
         />
       </div>
-      <p class="text-xs tabular-nums">{props.label}</p>
-    </>
+      <p class="text-xs tabular-nums text-gray-11">{props.label}</p>
+    </div>
   );
 }

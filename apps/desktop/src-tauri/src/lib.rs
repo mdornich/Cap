@@ -262,6 +262,11 @@ pub struct RecordingStarted;
 pub struct RecordingStopped;
 
 #[derive(Deserialize, specta::Type, Serialize, tauri_specta::Event, Debug, Clone)]
+pub struct RecordingDeleted {
+    path: PathBuf,
+}
+
+#[derive(Deserialize, specta::Type, Serialize, tauri_specta::Event, Debug, Clone)]
 pub struct RequestStartRecording;
 
 #[derive(Deserialize, specta::Type, Serialize, tauri_specta::Event, Debug, Clone)]
@@ -399,6 +404,27 @@ async fn list_audio_devices() -> Result<Vec<String>, ()> {
     }
 
     Ok(AudioInputFeed::list_devices().keys().cloned().collect())
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn editor_delete_project(
+    app: tauri::AppHandle,
+    editor_instance: WindowEditorInstance,
+    window: tauri::Window,
+) -> Result<(), String> {
+    let _ = window.close();
+
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+    let path = editor_instance.0.project_path.clone();
+    drop(editor_instance);
+
+    let _ = tokio::fs::remove_dir_all(&path).await;
+
+    RecordingDeleted { path }.emit(&app);
+
+    Ok(())
 }
 
 #[derive(Serialize, Type, tauri_specta::Event, Debug, Clone)]
@@ -910,6 +936,7 @@ pub async fn run(recording_logging_handle: LoggingHandle) {
             recording::list_capture_screens,
             screenshots::take_screenshot,
             list_audio_devices,
+            editor_delete_project,
             system::close_recordings_overlay_window,
             fake_window::set_fake_window_bounds,
             fake_window::remove_fake_window,
@@ -979,6 +1006,7 @@ pub async fn run(recording_logging_handle: LoggingHandle) {
             CurrentRecordingChanged,
             RecordingStarted,
             RecordingStopped,
+            RecordingDeleted,
             RequestStartRecording,
             RequestNewScreenshot,
             RequestOpenSettings,

@@ -1,5 +1,6 @@
-import { For, Show, createSignal, createEffect, batch } from "solid-js";
+import { For, Show, createSignal, createEffect, batch, onMount, onCleanup } from "solid-js";
 import { cx } from "cva";
+import { Menu } from "@tauri-apps/api/menu";
 import { useEditorContext, FPS, OUTPUT_SIZE } from "../context";
 import { useTimelineContext, useTrackContext, TrackContextProvider } from "./context";
 import { formatTime } from "../utils";
@@ -15,6 +16,7 @@ interface CaptionSegmentProps {
   index: number;
   isSelected: boolean;
   onSelect: () => void;
+  onDelete: () => void;
 }
 
 function CaptionSegment(props: CaptionSegmentProps) {
@@ -209,6 +211,26 @@ function CaptionSegment(props: CaptionSegmentProps) {
         }}
         onDblClick={handleDoubleClick}
         onMouseDown={(e) => handleMouseDown(e, "move")}
+        onContextMenu={async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Select the segment first
+          props.onSelect();
+          
+          // Create context menu
+          const menu = await Menu.new({
+            id: "caption-segment-menu",
+            items: [
+              {
+                id: "delete",
+                text: "Delete Caption",
+                action: () => props.onDelete(),
+              },
+            ],
+          });
+          await menu.popup();
+        }}
       >
         {/* Resize handles */}
         <div
@@ -312,6 +334,23 @@ function CaptionSegment(props: CaptionSegmentProps) {
         <div class="absolute -top-5 left-0 text-[10px] text-gray-500 select-none">
           {formatTime(props.segment.start)}
         </div>
+        
+        {/* Delete button (visible when selected) */}
+        <Show when={props.isSelected && !isEditing()}>
+          <button
+            class="absolute top-1 right-1 p-0.5 bg-red-500 hover:bg-red-600 rounded text-white z-30"
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onDelete();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Delete caption (Delete/Backspace)"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+          </button>
+        </Show>
       </div>
     </Show>
   );
@@ -320,6 +359,49 @@ function CaptionSegment(props: CaptionSegmentProps) {
 export function CaptionTrack() {
   const { project, setProject, editorState, setEditorState } = useEditorContext();
   const [trackRef, setTrackRef] = createSignal<HTMLDivElement>();
+  
+  const deleteCaption = (captionId: string) => {
+    if (!project?.captions?.segments) return;
+    
+    const updatedSegments = project.captions.segments.filter(s => s.id !== captionId);
+    
+    batch(() => {
+      setProject("captions", "segments", updatedSegments);
+      // Clear selection after deletion
+      setEditorState("timeline", "selection", null);
+    });
+    
+    // Force frame re-render after deletion
+    setTimeout(() => {
+      events.renderFrameEvent.emit({
+        frame_number: Math.floor(editorState.playbackTime * FPS),
+        fps: FPS,
+        resolution_base: OUTPUT_SIZE,
+      });
+    }, 100);
+  };
+  
+  // Add keyboard shortcut for deleting selected caption
+  onMount(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if Delete or Backspace key is pressed
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Check if a caption is selected
+        const sel = editorState.timeline.selection;
+        if (sel && sel.type === 'caption' && sel.id) {
+          // Check if not currently editing any caption
+          const editingInput = document.querySelector('input[type="text"]');
+          if (!editingInput || document.activeElement !== editingInput) {
+            e.preventDefault();
+            deleteCaption(sel.id);
+          }
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
+  });
   
   const handleAddCaption = () => {
     if (!project?.captions) return;
@@ -441,6 +523,7 @@ export function CaptionTrack() {
                       });
                     }, 100);
                   }}
+                  onDelete={() => deleteCaption(segment.id)}
                 />
               )}
             </For>

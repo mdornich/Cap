@@ -239,11 +239,12 @@ export function Timeline() {
           {(time) => (
             <div
               class={cx(
-                "flex absolute bottom-0 top-4 left-5 z-10 justify-center items-center w-px pointer-events-none bg-gradient-to-b to-[120%]",
+                "flex absolute top-4 left-5 z-10 justify-center items-center w-px pointer-events-none bg-gradient-to-b to-[120%]",
                 split() ? "from-red-300" : "from-gray-400"
               )}
               style={{
                 left: `${TIMELINE_PADDING}px`,
+                height: "calc(100% - 140px)",
                 transform: `translateX(${
                   (time() - transform().position) / secsPerPixel()
                 }px)`,
@@ -260,11 +261,12 @@ export function Timeline() {
         </Show>
         <div
           class={cx(
-            "absolute bottom-0 top-4 h-full rounded-full z-10 w-px pointer-events-none bg-gradient-to-b to-[120%] from-[rgb(226,64,64)]",
+            "absolute top-4 rounded-full z-10 w-px pointer-events-none bg-gradient-to-b to-[120%] from-[rgb(226,64,64)]",
             split() && "opacity-50"
           )}
           style={{
             left: `${TIMELINE_PADDING}px`,
+            height: "calc(100% - 90px)",
             transform: `translateX(${Math.min(
               (editorState.playbackTime - transform().position) /
                 secsPerPixel(),

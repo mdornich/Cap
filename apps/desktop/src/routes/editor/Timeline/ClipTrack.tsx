@@ -243,14 +243,14 @@ export function ClipTrack(
               <Show when={marker()}>
                 {(marker) => (
                   <div
-                    class="absolute w-0 z-10 h-full *:absolute"
+                    class="absolute w-0 z-10 h-[calc(100%-40px)] *:absolute"
                     style={{
                       transform: `translateX(${
                         i() === 0 ? segmentX() : segmentX()
                       }px)`,
                     }}
                   >
-                    <div class="w-[2px] bottom-0 -top-2 rounded-full from-red-300 to-transparent bg-gradient-to-b -translate-x-1/2" />
+                    <div class="w-[2px] bottom-0 top-0 rounded-full from-red-300 to-transparent bg-gradient-to-b -translate-x-1/2" />
                     <Switch>
                       <Match
                         when={(() => {
@@ -533,12 +533,12 @@ export function ClipTrack(
               >
                 {(marker) => (
                   <div
-                    class="absolute w-0 z-10 h-full *:absolute"
+                    class="absolute w-0 z-10 h-[calc(100%-40px)] *:absolute"
                     style={{
                       transform: `translateX(${segmentX() + segmentWidth()}px)`,
                     }}
                   >
-                    <div class="w-[2px] bottom-0 -top-2 rounded-full from-red-300 to-transparent bg-gradient-to-b -translate-x-1/2" />
+                    <div class="w-[2px] bottom-0 top-0 rounded-full from-red-300 to-transparent bg-gradient-to-b -translate-x-1/2" />
                     <div class="h-7 w-0 absolute -top-8 flex flex-row rounded-full">
                       <CutOffsetButton
                         value={(() => {

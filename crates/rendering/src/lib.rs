@@ -739,7 +739,30 @@ impl ProjectUniforms {
                     .advanced_shadow
                     .as_ref()
                     .map_or(50.0, |s| s.blur),
-                _padding: [0.0; 3],
+                opacity: 1.0, // TODO: Implement scene interpolation
+                border_enabled: if project
+                    .background
+                    .border
+                    .as_ref()
+                    .map_or(false, |b| b.enabled)
+                {
+                    1.0
+                } else {
+                    0.0
+                },
+                border_width: project.background.border.as_ref().map_or(5.0, |b| b.width),
+                _padding1: [0.0; 2],
+                border_color: if let Some(b) = project.background.border.as_ref() {
+                    [
+                        b.color[0] as f32 / 255.0,
+                        b.color[1] as f32 / 255.0,
+                        b.color[2] as f32 / 255.0,
+                        (b.opacity / 100.0).clamp(0.0, 1.0),
+                    ]
+                } else {
+                    [1.0, 1.0, 1.0, 0.8]
+                },
+                _padding2: [0.0; 4],
             }
         };
 
@@ -845,7 +868,12 @@ impl ProjectUniforms {
                         .advanced_shadow
                         .as_ref()
                         .map_or(50.0, |s| s.blur),
-                    _padding: [0.0; 3],
+                    opacity: 1.0, // TODO: Implement scene interpolation
+                    border_enabled: 0.0,
+                    border_width: 0.0,
+                    _padding1: [0.0; 2],
+                    border_color: [0.0, 0.0, 0.0, 0.0],
+                    _padding2: [0.0; 4],
                 }
             });
 
