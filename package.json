@@ -35,5 +35,10 @@
   "name": "cap",
   "engines": {
     "node": "20"
+  },
+  "pnpm": {
+    "overrides": {
+      "qs": "^6.14.1"
+    }
   }
 }
