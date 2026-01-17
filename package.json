@@ -35,5 +35,12 @@
   "name": "cap",
   "engines": {
     "node": "20"
+  },
+  "pnpm": {
+    "overrides": {
+      "qs": "^6.14.1",
+      "node-forge": "^1.3.1",
+      "hono": "^4.7.11"
+    }
   }
 }
